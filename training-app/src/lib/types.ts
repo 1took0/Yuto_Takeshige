@@ -60,6 +60,10 @@ export interface EquipmentDef {
 export interface ExerciseDef {
   id: string;
   name: string;
+  /** 利用者が作成した種目 */
+  custom?: boolean;
+  /** 自作種目をメニュー自動作成の候補に含める */
+  autoMenu?: boolean;
   /** 使用器具（bodyweight の場合は未指定でもよい） */
   equipmentId: string;
   primary: MuscleGroup[];
@@ -277,6 +281,8 @@ export interface Settings {
   excludedExerciseIds: string[];
   /** 利用者が追加した店舗 */
   customStores?: StoreDef[];
+  /** 利用者が作成した種目 */
+  customExercises?: ExerciseDef[];
   seedVersion?: number;
   /** 初回設定（名前・目標・履歴取り込み）が済んでいるか */
   onboarded?: boolean;

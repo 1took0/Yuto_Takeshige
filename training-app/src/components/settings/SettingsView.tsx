@@ -9,9 +9,9 @@ import { GoalsEditor } from "./GoalsEditor";
 import { ShareSettings } from "./ShareSettings";
 import { goalsOrDefault } from "@/lib/goals";
 import { StoreManager } from "./StoreManager";
-import { useStores } from "@/hooks/useSettings";
+import { useExercises, useStores } from "@/hooks/useSettings";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
-import { EXERCISES } from "@/lib/catalog/exercises";
+import { CustomExerciseManager } from "./CustomExerciseManager";
 import type { Goals, StoreId } from "@/lib/types";
 import { cardioToCSV, downloadText, parseImport, setsToCSV, toJSON } from "@/lib/export";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -24,6 +24,7 @@ export function SettingsView() {
   const router = useRouter();
   const [storeSel, setStore] = useState<StoreId>("ichijoji");
   const stores = useStores();
+  const allEx = useExercises();
   const store = stores.some((s) => s.id === storeSel) ? storeSel : "ichijoji";
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
@@ -128,9 +129,11 @@ export function SettingsView() {
         </ul>
       </Section>
 
+      <CustomExerciseManager />
+
       <Section title="自動メニューから除外する種目" hint="チェックした種目は自動作成に含めません（手動追加は可能）。バードドッグは最初から含まれていません。">
         <ul className="grid grid-cols-1 gap-1 text-sm">
-          {EXERCISES.map((e) => {
+          {allEx.map((e) => {
             const checked = settings.excludedExerciseIds.includes(e.id);
             return (
               <li key={e.id}>

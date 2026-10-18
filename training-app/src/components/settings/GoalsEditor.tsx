@@ -5,11 +5,12 @@ import { MultiChipGroup, ChipGroup } from "@/components/ui/Chips";
 import { NumberField } from "@/components/ui/NumberField";
 import { REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { OBJECTIVE_LABEL } from "@/lib/goals";
-import { EXERCISES } from "@/lib/catalog/exercises";
+import { useExercises } from "@/hooks/useSettings";
 
 /** 目標の編集（初回設定と設定画面で共用） */
 export function GoalsEditor({ value, onChange }: { value: Goals; onChange: (g: Goals) => void }) {
   const [showFav, setShowFav] = useState(value.favoriteExerciseIds.length > 0);
+  const allEx = useExercises();
   const set = <K extends keyof Goals>(k: K, v: Goals[K]) => onChange({ ...value, [k]: v });
   return (
     <div className="space-y-4" data-testid="goals-editor">
@@ -50,7 +51,7 @@ export function GoalsEditor({ value, onChange }: { value: Goals; onChange: (g: G
         </button>
         {showFav && (
           <ul className="mt-1 grid grid-cols-1 gap-0.5 text-sm">
-            {EXERCISES.map((e) => (
+            {allEx.map((e) => (
               <li key={e.id}>
                 <label className="flex items-center gap-2 py-1">
                   <input

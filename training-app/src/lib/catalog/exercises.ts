@@ -1,4 +1,5 @@
-import type { ExerciseDef } from "@/lib/types";
+import type { BodyRegion, ExerciseDef, MuscleGroup } from "@/lib/types";
+import { MUSCLE_TO_REGION } from "./muscles";
 
 /**
  * 種目カタログ
@@ -693,10 +694,85 @@ export const EXERCISES: ExerciseDef[] = [
 
 const byId = new Map(EXERCISES.map((e) => [e.id, e]));
 
+// 利用者が作成した種目（設定から読み込み、同期的に参照できるよう保持する）
+let customList: ExerciseDef[] = [];
+let customById = new Map<string, ExerciseDef>();
+
+export function setCustomExercises(list: ExerciseDef[] | undefined) {
+  if (list === customList) return;
+  customList = list ?? [];
+  customById = new Map(customList.map((e) => [e.id, e]));
+}
+
 export function getExercise(id: string): ExerciseDef | undefined {
-  return byId.get(id);
+  return byId.get(id) ?? customById.get(id);
+}
+
+/** 標準の種目＋自作の種目 */
+export function allExercises(): ExerciseDef[] {
+  return [...EXERCISES, ...customList];
+}
+
+export function customExercises(): ExerciseDef[] {
+  return customList;
 }
 
 export function exerciseName(id: string): string {
-  return byId.get(id)?.name ?? id;
+  return getExercise(id)?.name ?? id;
+}
+
+export interface CustomExerciseInput {
+  name: string;
+  equipmentId: string;
+  primary: MuscleGroup[];
+  loadType: "weight" | "reps" | "time";
+  unilateral: boolean;
+  defaultSets: number;
+  defaultReps?: number;
+  defaultSeconds?: number;
+  increment: number;
+  restSec: number;
+  notes: string;
+  autoMenu: boolean;
+}
+
+/** 入力から自作種目の定義を作る */
+export function buildCustomExercise(input: CustomExerciseInput, id: string): ExerciseDef {
+  const primary: MuscleGroup[] = input.primary.length ? input.primary : ["core"];
+  const regions = [...new Set(primary.map((m) => MUSCLE_TO_REGION[m]))] as BodyRegion[];
+  const isTime = input.loadType === "time";
+  return {
+    id,
+    name: input.name.trim().slice(0, 30),
+    custom: true,
+    autoMenu: input.autoMenu,
+    equipmentId: input.equipmentId,
+    primary,
+    secondary: [],
+    regions,
+    loadType: input.loadType,
+    unilateral: input.unilateral || undefined,
+    defaultSets: Math.max(1, Math.min(10, Math.round(input.defaultSets))),
+    defaultReps: isTime ? undefined : Math.max(1, Math.round(input.defaultReps ?? 10)),
+    defaultSeconds: isTime ? Math.max(5, Math.round(input.defaultSeconds ?? 30)) : undefined,
+    restSec: Math.max(0, Math.round(input.restSec)),
+    workSec: isTime ? Math.max(5, Math.round(input.defaultSeconds ?? 30)) : 40,
+    increment: input.loadType === "weight" ? Math.max(0.5, input.increment) : 0,
+    priority: 60,
+    form: input.notes
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 10),
+    setup: [],
+    cautions: [],
+  };
+}
+
+export function newCustomExerciseId(): string {
+  const rnd = Array.from(crypto.getRandomValues(new Uint8Array(5)))
+    .map((b) => b.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 8);
+  return `cx-${rnd}`;
 }

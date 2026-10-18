@@ -1,6 +1,6 @@
 import type { BodyRegion, ExerciseDef, FocusArea, Goals, IntakeAnswers, MuscleGroup, Settings, StoreEquipment, Workout, WorkoutExercise } from "@/lib/types";
 import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
-import { EXERCISES, getExercise } from "@/lib/catalog/exercises";
+import { allExercises, customExercises, getExercise } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
 import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { trainingDateOf } from "@/lib/date/trainingDay";
@@ -115,7 +115,8 @@ interface Availability {
 
 function availability(storeEquipment: StoreEquipment[], storeId: string, equipmentId: string): Availability {
   const row = storeEquipment.find((r) => r.storeId === storeId && r.equipmentId === equipmentId);
-  if (!row) return { ok: false, confirmed: false };
+  // 「その他の器具」は店舗の器具一覧に無いので、使える前提（未確認）で扱う
+  if (!row) return equipmentId === "other" ? { ok: true, confirmed: false } : { ok: false, confirmed: false };
   return { ok: row.available, confirmed: row.confirmed };
 }
 
@@ -195,7 +196,9 @@ export function generatePlan(input: PlanInput): PlanResult {
   // ---- 候補種目のスコアリング ----
   const candidates: Candidate[] = [];
   const usedExercise = new Set<string>();
-  for (const slot of SLOTS) {
+  // 自作種目のうち「メニュー自動作成に含める」ものは、それぞれ独立した枠として候補に加える
+  const slots: Slot[] = [...SLOTS, ...customExercises().filter((d) => d.autoMenu).map((d) => ({ key: `custom:${d.id}`, candidates: [d.id], regions: d.regions, base: 60 }))];
+  for (const slot of slots) {
     let chosen: Candidate | null = null;
     for (const exId of slot.candidates) {
       const def = getExercise(exId);
@@ -420,7 +423,7 @@ function allSecondsHeld(ref: ExerciseHistoryEntry): boolean {
 /** 利用可能な種目一覧（UIの「種目を追加」用） */
 export function availableExercises(storeEquipment: StoreEquipment[], storeId: IntakeAnswers["storeId"], excludedIds: string[] = []): { def: ExerciseDef; confirmed: boolean }[] {
   const ex = new Set(excludedIds);
-  return EXERCISES.filter((d) => !ex.has(d.id))
+  return allExercises().filter((d) => !ex.has(d.id))
     .map((def) => ({ def, av: availability(storeEquipment, storeId, def.equipmentId) }))
     .filter((x) => x.av.ok)
     .map((x) => ({ def: x.def, confirmed: x.av.confirmed }));

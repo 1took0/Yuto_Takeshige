@@ -1,5 +1,5 @@
 import type { BodyRegion, CardioSegment, PlanPatch, Workout } from "@/lib/types";
-import { EXERCISES, getExercise } from "@/lib/catalog/exercises";
+import { allExercises, getExercise } from "@/lib/catalog/exercises";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { REGION_LABEL } from "@/lib/catalog/muscles";
 import { exerciseMinutes } from "@/lib/planner";
@@ -67,7 +67,7 @@ export function findExerciseByText(text: string): string | undefined {
     [/パロフ/, "pallof_press"],
   ];
   for (const [re, id] of aliases) if (re.test(t)) return id;
-  const hit = EXERCISES.find((e) => t.includes(e.name.replace(/（.*）/, "")));
+  const hit = allExercises().find((e) => t.includes(e.name.replace(/（.*）/, "")));
   return hit?.id;
 }
 
@@ -119,7 +119,7 @@ export interface CoachReply {
 function alternatives(exerciseId: string, w: Workout, availableIds: Set<string>): string[] {
   const def = getExercise(exerciseId);
   if (!def) return [];
-  return EXERCISES.filter((e) => e.id !== exerciseId && availableIds.has(e.id) && !w.exercises.some((x) => x.exerciseId === e.id) && e.primary.some((m) => def.primary.includes(m)))
+  return allExercises().filter((e) => e.id !== exerciseId && availableIds.has(e.id) && !w.exercises.some((x) => x.exerciseId === e.id) && e.primary.some((m) => def.primary.includes(m)))
     .sort((a, b) => b.priority - a.priority)
     .map((e) => e.id);
 }

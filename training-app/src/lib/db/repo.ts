@@ -1,7 +1,8 @@
 import { db } from "./index";
-import type { CardioPreference, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
+import type { CardioPreference, ExerciseDef, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
 import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
+import { allExercises, buildCustomExercise, newCustomExerciseId, setCustomExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
 import type { TimerHistoryEntry, TimerType } from "@/lib/timer/presets";
 import { addToHistory } from "@/lib/timer/presets";
 import type { TimerSegment } from "@/lib/timer/engine";
@@ -23,6 +24,7 @@ export async function getSettings(): Promise<Settings> {
   const s = await db().settings.get("settings");
   const merged = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
   setCustomStores(merged.customStores);
+  setCustomExercises(merged.customExercises);
   return merged;
 }
 
@@ -30,6 +32,9 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
   const cur = await getSettings();
   const next = { ...cur, ...patch, id: "settings" as const, updatedAt: new Date().toISOString() };
   await db().settings.put(next);
+  // 追加した店舗・種目をすぐに参照できるようにする（画面の再描画を待たない）
+  setCustomStores(next.customStores);
+  setCustomExercises(next.customExercises);
   return next;
 }
 
@@ -165,6 +170,35 @@ export async function deleteStore(id: StoreId): Promise<void> {
 
 export async function countWorkoutsAtStore(id: StoreId): Promise<number> {
   return db().workouts.where("storeId").equals(id).count();
+}
+
+// ---------- 自作の種目 ----------
+export async function addCustomExercise(input: CustomExerciseInput): Promise<ExerciseDef> {
+  const name = input.name.trim();
+  if (!name) throw new Error("種目名を入力してください");
+  const s = await getSettings();
+  if (allExercises().some((e) => e.name === name)) throw new Error("同じ名前の種目があります");
+  const def = buildCustomExercise(input, newCustomExerciseId());
+  await updateSettings({ customExercises: [...(s.customExercises ?? []), def] });
+  return def;
+}
+
+export async function updateCustomExercise(id: string, input: CustomExerciseInput): Promise<void> {
+  const s = await getSettings();
+  const name = input.name.trim();
+  if (!name) throw new Error("種目名を入力してください");
+  if (allExercises().some((e) => e.name === name && e.id !== id)) throw new Error("同じ名前の種目があります");
+  await updateSettings({ customExercises: (s.customExercises ?? []).map((e) => (e.id === id ? buildCustomExercise(input, id) : e)) });
+}
+
+/** 自作種目を削除する（過去の記録は種目名ごと残る） */
+export async function deleteCustomExercise(id: string): Promise<void> {
+  const s = await getSettings();
+  await updateSettings({
+    customExercises: (s.customExercises ?? []).filter((e) => e.id !== id),
+    excludedExerciseIds: s.excludedExerciseIds.filter((x) => x !== id),
+    goals: s.goals ? { ...s.goals, favoriteExerciseIds: s.goals.favoriteExerciseIds.filter((x) => x !== id) } : s.goals,
+  });
 }
 
 // ---------- KV ----------

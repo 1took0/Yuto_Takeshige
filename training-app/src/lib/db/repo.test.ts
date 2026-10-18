@@ -90,3 +90,54 @@ describe("店舗の追加・変更・削除", () => {
     await expect(addStore("X店")).rejects.toThrow(/同じ名前/);
   });
 });
+
+describe("自作の種目", () => {
+  const input = { name: "ケーブルクランチ", equipmentId: "other", primary: ["abs" as const], loadType: "weight" as const, unilateral: false, defaultSets: 3, defaultReps: 15, increment: 2.5, restSec: 45, notes: "背中を丸める\n反動を使わない", autoMenu: true };
+
+  it("作成・編集・削除。メニュー自動作成と種目追加の候補に入る", async () => {
+    const { addCustomExercise, updateCustomExercise, deleteCustomExercise, getSettings, updateSettings } = await import("./repo");
+    const { getExercise } = await import("@/lib/catalog/exercises");
+    const { generatePlan, availableExercises } = await import("@/lib/planner");
+    const { categoryOf } = await import("@/lib/workout/duration");
+    await ensureSeeded();
+    const def = await addCustomExercise(input);
+    expect(def).toMatchObject({ name: "ケーブルクランチ", custom: true, autoMenu: true, regions: ["abs"], form: ["背中を丸める", "反動を使わない"], defaultReps: 15 });
+    expect(def.id).toMatch(/^cx-/);
+    expect(getExercise(def.id)?.name).toBe("ケーブルクランチ");
+    expect(categoryOf({ exerciseId: def.id })).toBe("machine");
+    await expect(addCustomExercise(input)).rejects.toThrow(/同じ名前/);
+    await expect(addCustomExercise({ ...input, name: "レッグプレス" })).rejects.toThrow(/同じ名前/);
+
+    // 「その他の器具」は店舗の器具一覧に無くても使える
+    expect(availableExercises(await listStoreEquipment(), "ichijoji").some((a) => a.def.id === def.id)).toBe(true);
+    const plan = generatePlan({
+      intake: { storeId: "ichijoji", timeLimitMin: null, condition: 4, soreness: false, soreRegions: [], pain: { present: false }, focus: "abs_core", cardio: "walk" },
+      history: [],
+      storeEquipment: await listStoreEquipment(),
+      settings: { excludedExerciseIds: [] },
+      now: new Date("2026-10-18T10:00:00+09:00"),
+    }).workout;
+    expect(plan.exercises.map((e) => e.exerciseId)).toContain(def.id);
+
+    await updateCustomExercise(def.id, { ...input, name: "ケーブルクランチ改", autoMenu: false });
+    expect(getExercise(def.id)).toMatchObject({ name: "ケーブルクランチ改", autoMenu: false });
+
+    await updateSettings({ excludedExerciseIds: [def.id], goals: { priorityRegions: [], objectives: [], weakSide: "none", favoriteExerciseIds: [def.id], runStartSpeedKmh: 8 } });
+    await deleteCustomExercise(def.id);
+    const s = await getSettings();
+    expect(s.customExercises).toHaveLength(0);
+    expect(s.excludedExerciseIds).toEqual([]);
+    expect(s.goals?.favoriteExerciseIds).toEqual([]);
+    expect(getExercise(def.id)).toBeUndefined();
+  });
+
+  it("時間で記録する種目・ダンベル種目", async () => {
+    const { addCustomExercise } = await import("./repo");
+    const { categoryOf } = await import("@/lib/workout/duration");
+    const t = await addCustomExercise({ ...input, name: "デッドバグ", equipmentId: "mat", loadType: "time", defaultSeconds: 45 });
+    expect(t).toMatchObject({ loadType: "time", defaultSeconds: 45, defaultReps: undefined, increment: 0 });
+    expect(categoryOf({ exerciseId: t.id })).toBe("bodyweight");
+    const d = await addCustomExercise({ ...input, name: "ダンベルプルオーバー", equipmentId: "dumbbells" });
+    expect(categoryOf({ exerciseId: d.id })).toBe("dumbbell");
+  });
+});

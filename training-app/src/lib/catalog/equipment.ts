@@ -24,7 +24,8 @@ export const EQUIPMENT: EquipmentDef[] = [
   { id: "dumbbells", name: "ダンベル", category: "free" },
   { id: "preacher_bench", name: "アームカールベンチ", category: "bench" },
   { id: "bench", name: "ベンチ", category: "bench" },
-  { id: "mat", name: "マット", category: "bodyweight" },
+  { id: "mat", name: "マット（自重）", category: "bodyweight" },
+  { id: "other", name: "その他の器具・マシン", category: "machine" },
   { id: "bike", name: "エアロバイク", category: "cardio" },
   { id: "treadmill", name: "トレッドミル", category: "cardio" },
 ];

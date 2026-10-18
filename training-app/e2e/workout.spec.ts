@@ -331,3 +331,49 @@ test("トレーニングをキャンセルでき、有酸素の入力は合計�
   await page.goto("/history");
   await expect(page.getByTestId("history-item")).toHaveCount(12);
 });
+
+test("種目を自分で作り、トレーニングで使える。削除しても記録に名前が残る", async ({ page }) => {
+  // 設定から作成（自動作成に含める）
+  await page.goto("/settings");
+  await page.getByTestId("custom-ex-new").click();
+  const form = page.getByTestId("custom-ex-form");
+  await form.getByTestId("custom-ex-name").fill("ケーブルクランチ");
+  await form.getByRole("button", { name: "腹直筋" }).click();
+  await form.getByLabel("器具").selectOption("other");
+  await form.getByTestId("custom-ex-auto").check();
+  await page.getByTestId("custom-ex-save").click();
+  await expect(page.getByTestId("custom-ex-list")).toContainText("ケーブルクランチ");
+
+  // 重点「腹筋・体幹」で作ると自動で入る
+  await page.goto("/start");
+  await page.getByRole("radio", { name: "制限なし" }).click();
+  await page.getByRole("radio", { name: "腹筋・体幹" }).click();
+  await page.getByTestId("generate").click();
+  await expect(page.getByTestId("exercise-card").filter({ hasText: "ケーブルクランチ" })).toBeVisible();
+
+  // トレーニング中に「一覧に無い種目を作る」→ そのまま追加される
+  await page.getByTestId("add-exercise").click();
+  await page.getByTestId("add-sheet-create").click();
+  await page.getByTestId("custom-ex-name").fill("ダンベルプルオーバー");
+  await page.getByTestId("custom-ex-form").getByRole("button", { name: "広背筋" }).click();
+  await page.getByTestId("custom-ex-save").click();
+  const added = page.getByTestId("exercise-card").filter({ hasText: "ダンベルプルオーバー" });
+  await expect(added).toBeVisible();
+  await added.locator("header").click();
+  await added.getByRole("button", { name: /セット1を完了にする/ }).click();
+  await page.getByRole("button", { name: "休憩タイマーを閉じる" }).click();
+  await page.getByTestId("finish").click();
+  await page.getByTestId("finish-confirm").click();
+  await expect(page.getByTestId("detail-exercise").filter({ hasText: "ダンベルプルオーバー" })).toBeVisible();
+  await expect(page.getByTestId("durations")).toContainText("ダンベル");
+
+  // 削除しても記録に名前が残る
+  await page.goto("/settings");
+  const row = page.getByTestId("custom-ex-list").locator("li", { hasText: "ダンベルプルオーバー" });
+  await row.getByRole("button", { name: "削除" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
+  await expect(page.getByTestId("custom-ex-list")).not.toContainText("ダンベルプルオーバー");
+  await page.goto("/history");
+  await page.getByTestId("history-item").first().click();
+  await expect(page.getByTestId("detail-exercise").filter({ hasText: "ダンベルプルオーバー" })).toBeVisible();
+});
