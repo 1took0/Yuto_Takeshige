@@ -3,7 +3,7 @@
  * - ページ遷移はネットワーク優先、失敗時はキャッシュ → /offline
  * - 記録データは IndexedDB に保存されるため SW はアプリシェルの配信のみ担当
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `tc-shell-${VERSION}`;
 const ASSET_CACHE = `tc-assets-${VERSION}`;
 const PRECACHE_URLS = ["/", "/workout", "/history", "/analytics", "/settings", "/timer", "/coach", "/offline", "/manifest.webmanifest"];
@@ -13,7 +13,12 @@ self.addEventListener("install", (event) => {
     caches
       .open(SHELL_CACHE)
       .then((cache) =>
-        Promise.allSettled(PRECACHE_URLS.map((u) => cache.add(new Request(u, { cache: "reload" })))),
+        Promise.allSettled(
+          PRECACHE_URLS.map(async (u) => {
+            const res = await fetch(new Request(u, { cache: "reload" }));
+            if (res.ok && !res.redirected) await cache.put(u, res);
+          }),
+        ),
       )
       .then(() => self.skipWaiting()),
   );
@@ -66,7 +71,8 @@ self.addEventListener("fetch", (event) => {
         const cache = await caches.open(SHELL_CACHE);
         try {
           const res = await fetch(req);
-          if (res.ok) cache.put(new Request(url.pathname), res.clone());
+          // ログイン画面へのリダイレクト結果はアプリシェルとしてキャッシュしない
+          if (res.ok && !res.redirected) cache.put(new Request(url.pathname), res.clone());
           return res;
         } catch {
           const hit = (await cache.match(url.pathname)) || (await cache.match("/"));
@@ -83,7 +89,7 @@ self.addEventListener("fetch", (event) => {
       const cache = await caches.open(SHELL_CACHE);
       try {
         const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
+        if (res.ok && !res.redirected) cache.put(req, res.clone());
         return res;
       } catch {
         const hit = await cache.match(req);

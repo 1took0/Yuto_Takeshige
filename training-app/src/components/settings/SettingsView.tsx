@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useSettings } from "@/hooks/useSettings";
 import { db } from "@/lib/db";
@@ -15,6 +16,7 @@ import { musclesLabel } from "@/lib/catalog/muscles";
 
 export function SettingsView() {
   const { settings, update } = useSettings();
+  const router = useRouter();
   const [store, setStore] = useState<StoreId>("ichijoji");
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
@@ -153,6 +155,26 @@ export function SettingsView() {
           <li>ランニング能力・心肺機能の向上（連続走行時間を段階的に延長）</li>
           <li>片手ダンベルハンマーカールを定期的に組み込む</li>
         </ul>
+      </Section>
+
+      <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
+        <button
+          type="button"
+          className="btn-secondary px-3 py-1.5 text-sm"
+          onClick={async () => {
+            const r = await fetch("/api/login");
+            const j = await r.json().catch(() => ({ enabled: false }));
+            if (!j.enabled) {
+              toast("パスワード保護は無効です（APP_PASSWORD 未設定）");
+              return;
+            }
+            await fetch("/api/login", { method: "DELETE" });
+            router.push("/login");
+            router.refresh();
+          }}
+        >
+          この端末でログアウト
+        </button>
       </Section>
 
       <Section title="AIコーチ（Claude API）" hint="API キーはサーバーの環境変数 ANTHROPIC_API_KEY にのみ設定します。ブラウザには送られません。未設定でも履歴・進捗・タイマー・ルールベースのメニュー作成は動作します。">

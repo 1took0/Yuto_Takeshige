@@ -158,9 +158,47 @@ scripts/               アイコン生成・スクリーンショット
 - **長時間でもセット数を増やしすぎない**：制限なしでも最大 12 種目・3 セットまで。筋トレと有酸素の両立を優先。
 - **バードドッグ**はカタログに含めていません。**片手ダンベルハンマーカール**は直近 2 回入っていなければ優先度を上げます。
 
-## デプロイ（任意・確認のうえ実施）
+## 外出先（別の Wi-Fi / モバイル回線）から使う：無料で公開する
 
-Vercel 等にそのままデプロイできます（`ANTHROPIC_API_KEY` は環境変数に設定）。外部公開・課金が発生する操作のため、実施前にご確認ください。
+自宅 PC で動かす方法は同じ Wi-Fi でしか使えません。どこからでも使うには、無料ホスティングに公開します。**Vercel の Hobby プラン（個人・非商用は無料）**が最も簡単です。
+
+### 1. アクセス保護を有効にする（推奨）
+
+公開 URL は誰でも開けるため、共有パスワードで保護します。環境変数 `APP_PASSWORD` を設定すると、全画面でパスワードが必要になります（一度ログインすると端末ごとに 1 年間有効。Cookie にはハッシュのみ保存）。記録データ自体は各端末の IndexedDB にあり、サーバーには保存されません。
+
+### 2. Vercel にデプロイする
+
+1. [vercel.com](https://vercel.com) に GitHub アカウントでサインアップ（無料）
+2. **Add New → Project** → この GitHub リポジトリ（`1took0/Yuto_Takeshige`）を Import
+3. 設定画面で次を指定
+   - **Root Directory**: `training-app`
+   - **Framework Preset**: Next.js（自動検出）
+   - **Environment Variables**:
+     - `APP_PASSWORD` = 好きなパスワード（推奨）
+     - `ANTHROPIC_API_KEY` = Claude を使う場合のみ（従量課金）
+4. **Deploy** を押す。数分で `https://<プロジェクト名>.vercel.app` が発行されます
+5. iPhone の Safari でその URL を開き、パスワードを入力 → 共有ボタン → **ホーム画面に追加**
+
+HTTPS になるため、オフラインキャッシュ・画面消灯防止（Wake Lock）など PWA の全機能が有効になります。以後は GitHub の対象ブランチに push するたびに自動で再デプロイされます（Vercel の Production Branch 設定で、このアプリのブランチを指定してください）。
+
+### 費用
+
+| 項目 | 費用 |
+|---|---|
+| Vercel Hobby（個人利用） | 無料（帯域 100GB/月など十分な無料枠） |
+| アプリ本体・データ保存 | 無料（データは端末内） |
+| Claude API | キーを設定した場合のみ従量課金（上記参照） |
+
+### 代替案
+
+- **Cloudflare Workers / Pages**（無料枠あり）: `@opennextjs/cloudflare` を使えば Next.js をデプロイできますが、設定が増えます。
+- **自宅 PC + Tailscale**（無料）: PC と iPhone に Tailscale を入れると、外出先から自宅 PC の `http://<Tailscale IP>:3000` に到達できます。ただし HTTP のため PWA のオフライン機能と Wake Lock は使えず、PC を常時起動しておく必要があります。
+
+### ローカルで保護を試す
+
+```bash
+APP_PASSWORD=test1234 npm start
+```
 
 ## スクリーンショット（iPhone 14 サイズ）
 
