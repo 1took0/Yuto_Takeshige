@@ -163,7 +163,7 @@ export function ActiveWorkoutView() {
               data-testid="finish">
               トレーニングを終了・保存
             </button>
-            <Link href="/timer/rest" className="btn-secondary">
+            <Link href="/timer/interval" className="btn-secondary">
               ⏱ タイマー画面
             </Link>
             <button type="button" className="btn-secondary text-danger" onClick={() => setConfirmCancel(true)}>

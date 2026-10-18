@@ -140,10 +140,17 @@ test("チャットで「ジムに来た」→ヒアリング開始、「あと20
   expect(after).toBeLessThan(before);
 });
 
-test("タイマー：開始→一時停止→再開、再読み込みで復元", async ({ page }) => {
-  await page.goto("/timer/rest");
+test("タイマー：選んでもすぐには始まらず、スタート→一時停止→再開、再読み込みで復元", async ({ page }) => {
+  await page.goto("/timer/countdown");
   await expect(page.getByTestId("timer-main")).toBeVisible();
-  await page.getByRole("button", { name: "90秒" }).click();
+  await page.getByRole("button", { name: "1分30秒" }).click();
+  await page.getByTestId("timer-set").click();
+  // セットしただけでは動かない
+  await expect(page.getByTestId("timer-toggle")).toContainText("スタート");
+  await expect(page.getByTestId("segment-remaining")).toHaveText("01:30");
+  await page.waitForTimeout(1200);
+  await expect(page.getByTestId("segment-remaining")).toHaveText("01:30");
+  await page.getByTestId("timer-toggle").click();
   await expect(page.getByTestId("timer-toggle")).toContainText("一時停止");
   await page.waitForTimeout(1500);
   await page.getByTestId("timer-toggle").click(); // 一時停止
@@ -152,8 +159,7 @@ test("タイマー：開始→一時停止→再開、再読み込みで復元",
   expect(await page.getByTestId("segment-remaining").textContent()).toBe(paused);
   await page.getByTestId("timer-toggle").click(); // 再開
   await page.waitForTimeout(1200);
-  const afterResume = await page.getByTestId("segment-remaining").textContent();
-  expect(afterResume).not.toBe(paused);
+  expect(await page.getByTestId("segment-remaining").textContent()).not.toBe(paused);
   // 再読み込み後も動作中のまま復元される
   await page.reload();
   await expect(page.getByTestId("timer-toggle")).toContainText("一時停止");
@@ -161,7 +167,39 @@ test("タイマー：開始→一時停止→再開、再読み込みで復元",
   await page.waitForTimeout(1200);
   expect(await page.getByTestId("segment-remaining").textContent()).not.toBe(r1);
   await page.getByTestId("timer-reset").click();
-  await expect(page.getByTestId("timer-toggle")).toContainText("開始");
+  await expect(page.getByTestId("timer-toggle")).toContainText("スタート");
+});
+
+test("インターバルを自由に設定して切り替わる。履歴から呼び出せる", async ({ page }) => {
+  await page.goto("/timer/interval");
+  const ed = page.getByTestId("interval-editor");
+  for (const [label, v] of [["運動の秒数", "3"], ["休憩の秒数", "2"], ["回数", "2"], ["準備の秒数", "0"]] as const) {
+    await ed.getByLabel(label, { exact: true }).fill(v);
+    await ed.getByLabel(label, { exact: true }).press("Enter");
+  }
+  await ed.getByLabel("タイマーの名前").fill("テスト用インターバル");
+  await page.getByTestId("timer-set").click();
+  await expect(page.getByTestId("segment-label")).toContainText("運動 1/2");
+  await expect(page.getByTestId("timer-toggle")).toContainText("スタート");
+  await page.getByTestId("timer-toggle").click();
+  await expect(page.getByTestId("segment-label")).toContainText("休憩 1/2", { timeout: 6000 });
+  await expect(page.getByTestId("segment-label")).toContainText("運動 2/2", { timeout: 6000 });
+
+  // 通常タイマーも1回スタートして履歴に残す
+  await page.goto("/timer/countdown");
+  await page.getByRole("button", { name: "5分", exact: true }).click();
+  await page.getByTestId("timer-set").click();
+  await page.getByTestId("timer-toggle").click();
+  await page.getByTestId("timer-toggle").click();
+
+  // 履歴：最近使ったものが上。インターバルの履歴をタップ → インターバル画面にセットされ、未スタート
+  const items = page.getByTestId("timer-history-item");
+  await expect(items.first()).toContainText("タイマー 05:00");
+  await items.filter({ hasText: "テスト用インターバル" }).click();
+  await expect(page).toHaveURL(/\/timer\/interval/);
+  await expect(page.getByTestId("segment-label")).toContainText("運動 1/2");
+  await expect(page.getByTestId("timer-toggle")).toContainText("スタート");
+  await expect(page.getByTestId("segment-remaining")).toHaveText("00:03");
 });
 
 test("設定：器具を「ない」にすると次回のメニューから除外される", async ({ page }) => {

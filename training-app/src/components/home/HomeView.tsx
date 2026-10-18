@@ -75,7 +75,7 @@ export function HomeView() {
       )}
 
       <section className="grid grid-cols-2 gap-2">
-        <Link href="/timer/rest" className="btn-secondary">
+        <Link href="/timer/interval" className="btn-secondary">
           ⏱ タイマー
         </Link>
         <Link href="/coach" className="btn-secondary">

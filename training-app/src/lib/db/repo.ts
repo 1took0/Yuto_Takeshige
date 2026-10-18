@@ -2,6 +2,9 @@ import { db } from "./index";
 import type { CardioPreference, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
 import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
+import type { TimerHistoryEntry, TimerType } from "@/lib/timer/presets";
+import { addToHistory } from "@/lib/timer/presets";
+import type { TimerSegment } from "@/lib/timer/engine";
 
 export const DEFAULT_SETTINGS: Settings = {
   id: "settings",
@@ -188,4 +191,20 @@ export async function wipeAll(): Promise<void> {
     await db().settings.clear();
     await db().kv.clear();
   });
+}
+
+// ---------- Timer history ----------
+
+const TIMER_HISTORY_KEY = "timerHistory";
+
+export async function getTimerHistory(): Promise<TimerHistoryEntry[]> {
+  return (await kvGet<TimerHistoryEntry[]>(TIMER_HISTORY_KEY)) ?? [];
+}
+
+export async function recordTimerUse(type: TimerType, segments: TimerSegment[], title?: string): Promise<void> {
+  await kvSet(TIMER_HISTORY_KEY, addToHistory(await getTimerHistory(), type, segments, title));
+}
+
+export async function deleteTimerHistory(id: string): Promise<void> {
+  await kvSet(TIMER_HISTORY_KEY, (await getTimerHistory()).filter((e) => e.id !== id));
 }
