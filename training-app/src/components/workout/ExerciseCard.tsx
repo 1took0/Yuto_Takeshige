@@ -157,16 +157,6 @@ export function ExerciseCard({ exercise: e, index, total, mutate, collapsed, foc
               </>
             )}
             <span className="ml-auto flex items-center gap-1">
-              <label className="flex items-center gap-1 text-muted">
-                休憩
-                <select className="rounded-lg border border-border bg-card px-1 py-1" value={e.restSec} onChange={(ev) => mutate((w) => updateExercise(w, e.id, { restSec: Number(ev.target.value) }))} aria-label="休憩時間">
-                  {[30, 45, 60, 75, 90, 120, 150, 180].map((s) => (
-                    <option key={s} value={s}>
-                      {s}秒
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button type="button" className="tap px-2 text-muted disabled:opacity-30" disabled={index === 0} onClick={() => mutate((w) => moveExercise(w, e.id, -1))} aria-label="上へ移動">
                 ↑
               </button>

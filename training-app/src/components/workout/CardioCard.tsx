@@ -91,7 +91,7 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
               <Field label="合計">
                 <NumberField label="合計時間" unit="分" value={c.actual?.totalMin} onChange={(v) => patchActual({ totalMin: v })} step={1} max={180} size="sm" className="w-[9.5rem]" placeholder="未入力" />
               </Field>
-              {c.machine === "treadmill" ? (
+              {c.machine === "treadmill" && (
                 <>
                   <Field label="走行">
                     <NumberField label="ランニング時間" unit="分" value={c.actual?.runMin} onChange={(v) => patchActual({ runMin: v })} step={1} max={120} size="sm" className="w-[9.5rem]" placeholder="未入力" />
@@ -99,23 +99,10 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
                   <Field label="速度">
                     <NumberField label="ランニング速度" unit="km/h" value={c.actual?.runSpeedKmh} onChange={(v) => patchActual({ runSpeedKmh: v })} step={0.5} max={20} size="sm" className="w-[9.5rem]" placeholder="未入力" />
                   </Field>
-                  <Field label="最長連続">
-                    <NumberField label="最長連続走行" unit="分" value={c.actual?.longestRunMin} onChange={(v) => patchActual({ longestRunMin: v })} step={1} max={60} size="sm" className="w-[9.5rem]" placeholder="未入力" />
-                  </Field>
-                  <Field label="距離">
-                    <NumberField label="距離" unit="km" value={c.actual?.distanceKm} onChange={(v) => patchActual({ distanceKm: v })} step={0.1} max={50} size="sm" className="w-[9.5rem]" placeholder="未入力" decimals={2} />
-                  </Field>
-                  <Field label="傾斜">
-                    <NumberField label="傾斜" unit="%" value={c.actual?.inclinePct} onChange={(v) => patchActual({ inclinePct: v })} step={0.5} max={15} size="sm" className="w-[9.5rem]" placeholder="未入力" />
-                  </Field>
                 </>
-              ) : (
-                <Field label="負荷">
-                  <NumberField label="負荷レベル" unit="L" value={c.actual?.level} onChange={(v) => patchActual({ level: v })} step={1} max={30} size="sm" className="w-[9.5rem]" placeholder="未入力" />
-                </Field>
               )}
             </div>
-            <input className="input mt-2 text-sm" placeholder="メモ（例：2分×4本、L15 2分→L20 3分）" value={c.actual?.note ?? ""} onChange={(e) => patchActual({ note: e.target.value })} aria-label="有酸素メモ" />
+            <input className="input mt-2 text-sm" placeholder="メモ（例：2分×4本）" value={c.actual?.note ?? ""} onChange={(e) => patchActual({ note: e.target.value })} aria-label="有酸素メモ" />
             {c.plan.length > 0 && !c.actual?.totalMin && (
               <button
                 type="button"
@@ -126,8 +113,6 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
                     runMin: run || undefined,
                     runSpeedKmh: c.plan.find((s) => s.kind === "run")?.speedKmh,
                     longestRunMin: run ? Math.max(...c.plan.filter((s) => s.kind === "run").map((s) => s.durationSec / 60)) : undefined,
-                    distanceKm: dist ? Math.round(dist * 100) / 100 : undefined,
-                    level: c.plan.find((s) => s.level)?.level,
                   })
                 }
               >

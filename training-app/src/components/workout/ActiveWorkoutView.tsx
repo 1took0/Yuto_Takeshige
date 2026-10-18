@@ -8,7 +8,7 @@ import { ExerciseCard } from "./ExerciseCard";
 import { CardioCard } from "./CardioCard";
 import { AddExerciseSheet } from "./AddExerciseSheet";
 import { RestTimerBar } from "@/components/timer/RestTimerBar";
-import { Sheet } from "@/components/ui/Sheet";
+import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
 import { addExercise, finalizeWorkout, progressOf } from "@/lib/workout/edit";
 import { workoutStoreName } from "@/lib/catalog/stores";
@@ -27,6 +27,7 @@ export function ActiveWorkoutView() {
   const [collapsedState, setCollapsed] = useState<Record<string, boolean> | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showFinish, setShowFinish] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [durDraft, setDurDraft] = useState<WorkoutDurations | undefined>(undefined);
   const [rest, setRest] = useState<{ sec: number; nonce: number } | null>(null);
   const [showCoach, setShowCoach] = useState(false);
@@ -88,6 +89,9 @@ export function ActiveWorkoutView() {
     await deleteWorkout(w.id);
     await setWorkout(null);
     clearTimer("rest");
+    clearTimer("bike");
+    clearTimer("treadmill");
+    toast("トレーニングをキャンセルしました");
     router.push("/");
   };
 
@@ -98,7 +102,12 @@ export function ActiveWorkoutView() {
           <span>
             {formatJaDate(w.trainingDate)} {workoutStoreName(w, true)} ・ {formatTimeHM(w.startedAt)}〜
           </span>
-          <span aria-live="polite">{saving ? "保存中…" : savedAt ? `保存済み ${formatTimeHM(savedAt)}` : "自動保存"}</span>
+          <span className="flex items-center gap-2">
+            <span aria-live="polite">{saving ? "保存中…" : savedAt ? `保存済み ${formatTimeHM(savedAt)}` : "自動保存"}</span>
+            <button type="button" className="rounded-lg border border-border px-2 py-1 text-xs font-medium text-danger" onClick={() => setConfirmCancel(true)} data-testid="cancel-workout">
+              キャンセル
+            </button>
+          </span>
         </div>
         <ProgressBar p={progress} compact={!!focusedId} />
       </div>
@@ -157,6 +166,9 @@ export function ActiveWorkoutView() {
             <Link href="/timer/rest" className="btn-secondary">
               ⏱ タイマー画面
             </Link>
+            <button type="button" className="btn-secondary text-danger" onClick={() => setConfirmCancel(true)}>
+              トレーニングをキャンセル
+            </button>
           </div>
         </>
       )}
@@ -164,6 +176,16 @@ export function ActiveWorkoutView() {
       {rest && settings && <RestTimerBar seconds={rest.sec} nonce={rest.nonce} sound={settings.sound} vibration={settings.vibration} onClose={() => setRest(null)} />}
 
       <AddExerciseSheet open={showAdd} onClose={() => setShowAdd(false)} storeId={w.storeId} excludedIds={settings?.excludedExerciseIds} onAdd={(id) => mutate((x) => addExercise(x, id))} />
+
+      <ConfirmDialog
+        open={confirmCancel}
+        title="トレーニングをキャンセルしますか？"
+        message="今日のメニューと、ここまでの記録は保存されずに削除されます。"
+        confirmLabel="キャンセルする"
+        danger
+        onConfirm={discard}
+        onClose={() => setConfirmCancel(false)}
+      />
 
       <Sheet open={showFinish} onClose={() => setShowFinish(false)} title="トレーニングを終了">
         <div className="space-y-3 text-sm">

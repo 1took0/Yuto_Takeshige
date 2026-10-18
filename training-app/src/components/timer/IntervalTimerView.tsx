@@ -9,7 +9,7 @@ import { createTimer, restTimer, start as startNow, type TimerSegment } from "@/
 import { releaseWakeLock, requestWakeLock, supportsVibration, supportsWakeLock, unlockAudio } from "@/lib/timer/notify";
 import { formatDuration } from "@/lib/date/trainingDay";
 import type { CardioEntry, CardioMachine, CardioSegment } from "@/lib/types";
-import { bikeWarmup, buildTreadmillPlan, planDistanceKm, planRunMin, planTotalMin } from "@/lib/planner/cardio";
+import { bikeWarmup, buildTreadmillPlan, planRunMin, planTotalMin } from "@/lib/planner/cardio";
 import { NumberField } from "@/components/ui/NumberField";
 
 type Machine = CardioMachine | "rest";
@@ -81,7 +81,6 @@ export function IntervalTimerView({ machine, entryId }: { machine: Machine; entr
     if (!entry) return;
     const total = planTotalMin(entry.plan);
     const run = planRunMin(entry.plan);
-    const dist = planDistanceKm(entry.plan);
     mutate((w) => ({
       ...w,
       cardio: w.cardio.map((c) =>
@@ -95,8 +94,6 @@ export function IntervalTimerView({ machine, entryId }: { machine: Machine; entr
                 runMin: run || c.actual?.runMin,
                 runSpeedKmh: entry.plan.find((s) => s.kind === "run")?.speedKmh ?? c.actual?.runSpeedKmh,
                 longestRunMin: run ? Math.max(...entry.plan.filter((s) => s.kind === "run").map((s) => s.durationSec / 60)) : c.actual?.longestRunMin,
-                distanceKm: dist ? Math.round(dist * 100) / 100 : c.actual?.distanceKm,
-                level: entry.plan.find((s) => s.level)?.level ?? c.actual?.level,
               },
             }
           : c,

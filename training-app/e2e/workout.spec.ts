@@ -92,7 +92,7 @@ test("メニュー作成 → セット編集 → 再読み込みで復元 → �
   // 完了済みセットを削除 → 確認ダイアログ
   await firstRow.getByRole("button", { name: "セットを削除" }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page.getByRole("button", { name: "キャンセル" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "キャンセル", exact: true }).click();
   await expect(first.getByTestId("set-row").first().getByLabel("重量", { exact: true })).toHaveValue("42.5");
 
   // 再読み込みしても状態が復元される
@@ -263,4 +263,33 @@ test("復元コードが違うと取り込めず、初回設定に取り込み�
   await p.getByTestId("restore-submit").click();
   await expect(p.getByText("復元コードが違います")).toBeVisible();
   await ctx.close();
+});
+
+test("トレーニングをキャンセルでき、有酸素の入力は合計・走行・速度だけ", async ({ page }) => {
+  await startWorkout(page);
+  // 休憩時間の入力欄は無い
+  await expect(page.getByLabel("休憩時間")).toHaveCount(0);
+  // トレッドミル：合計・走行・速度のみ
+  const tm = page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" });
+  await expect(tm.getByLabel("合計時間", { exact: true })).toBeVisible();
+  await expect(tm.getByLabel("ランニング時間", { exact: true })).toBeVisible();
+  await expect(tm.getByLabel("ランニング速度", { exact: true })).toBeVisible();
+  await expect(tm.getByLabel("最長連続走行")).toHaveCount(0);
+  await expect(tm.getByLabel("距離", { exact: true })).toHaveCount(0);
+  await expect(tm.getByLabel("傾斜", { exact: true })).toHaveCount(0);
+  // バイク：負荷の入力は無い
+  const bike = page.getByTestId("cardio-card").filter({ hasText: "エアロバイク" });
+  await expect(bike.getByLabel("負荷レベル")).toHaveCount(0);
+
+  // キャンセル（確認ダイアログで戻ることもできる）
+  await page.getByTestId("cancel-workout").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "キャンセル", exact: true }).click();
+  await expect(page.getByTestId("progress")).toBeVisible();
+  await page.getByTestId("cancel-workout").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "キャンセルする" }).click();
+  await expect(page.getByTestId("start")).toBeVisible();
+  await page.goto("/workout");
+  await expect(page.getByText("進行中のトレーニングはありません")).toBeVisible();
+  await page.goto("/history");
+  await expect(page.getByTestId("history-item")).toHaveCount(12);
 });
