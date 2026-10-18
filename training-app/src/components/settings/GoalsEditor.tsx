@@ -22,6 +22,10 @@ export function GoalsEditor({ value, onChange }: { value: Goals; onChange: (g: G
         <div className="mb-1 text-xs font-semibold text-muted">特に鍛えたい部位（未選択なら全身バランス）</div>
         <MultiChipGroup label="特に鍛えたい部位" options={REGION_ORDER.map((r) => ({ value: r, label: REGION_LABEL[r] }))} value={value.priorityRegions} onChange={(v) => set("priorityRegions", v)} />
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={!!value.preferDumbbell} onChange={(e) => set("preferDumbbell", e.target.checked)} data-testid="prefer-dumbbell" />
+        マシンよりダンベル種目を優先する
+      </label>
       <div>
         <div className="mb-1 text-xs font-semibold text-muted">左右差（弱い側）</div>
         <ChipGroup

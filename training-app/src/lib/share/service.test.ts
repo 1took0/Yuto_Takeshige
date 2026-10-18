@@ -69,6 +69,19 @@ describe("share service", () => {
   });
 });
 
+describe("時間の共有", () => {
+  it("記録の時間内訳が共有され、直近7日の合計が出る", async () => {
+    const kv = new MemoryKV();
+    await upsertProfile(kv, A.id, A.token, "Aさん");
+    const today = (await import("@/lib/date/trainingDay")).trainingDateOf();
+    const w = { ...toShareable(ws[0]), id: "dur1", trainingDate: today, source: "app", durations: { totalMin: 50, dumbbellMin: 30, machineMin: 10, cardioMin: 10 } };
+    await putWorkouts(kv, A.id, A.token, [w]);
+    const feed = await getFeed(kv);
+    expect(feed.recent[0].workout.durations).toMatchObject({ totalMin: 50, dumbbellMin: 30 });
+    expect(feed.users[0].week).toMatchObject({ sessions: 1, totalMin: 50, dumbbellMin: 30 });
+  });
+});
+
 describe("KV adapters", () => {
   it("Upstash REST: コマンドを JSON 配列で送り、HGETALL を復元", async () => {
     const calls: unknown[] = [];

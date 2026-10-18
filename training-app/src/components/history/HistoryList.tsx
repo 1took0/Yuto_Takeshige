@@ -76,6 +76,7 @@ export function HistoryList() {
                 </div>
                 <div className="mt-1 text-xs text-muted">
                   {w.exercises.length}種目・{sets}セット
+                  {w.durations?.totalMin ? `・${w.durations.totalMin}分${w.durations.dumbbellMin ? `（ダンベル${w.durations.dumbbellMin}分）` : ""}` : ""}
                   {tm?.actual?.totalMin ? `・トレッドミル${tm.actual.totalMin}分${tm.actual.runMin ? `（走${tm.actual.runMin}分）` : ""}` : ""}
                   {w.trainingDate === today && <span className="ml-1 rounded bg-success-soft px-1 text-success">今日</span>}
                 </div>

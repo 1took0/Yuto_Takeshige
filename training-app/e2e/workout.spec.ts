@@ -8,10 +8,19 @@ async function onboard(page: Page, opts: { name?: string; importSeed?: boolean; 
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome/);
   await page.getByTestId("welcome-name").fill(opts.name ?? "テスト");
-  if (opts.importSeed ?? true) await page.getByTestId("welcome-import").check();
   if (opts.share) await page.getByTestId("welcome-share").check();
   await page.getByTestId("welcome-submit").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
+  if (opts.importSeed ?? true) await restoreOwner(page);
+}
+
+/** 作成者の過去記録を復元コードで取り込む */
+async function restoreOwner(page: Page) {
+  await page.goto("/restore");
+  await page.getByTestId("restore-code").fill("e2e-owner");
+  await page.getByTestId("restore-submit").click();
+  await expect(page.getByText("12件の記録を取り込みました")).toBeVisible();
+  await expect(page).toHaveURL(/\/history/);
 }
 
 async function startWorkout(page: Page) {
@@ -220,4 +229,38 @@ test("店舗を追加してトレーニングし、削除後も記録に店舗�
   await expect(page.getByTestId("store-list")).not.toContainText("北白川");
   await page.goto("/history");
   await expect(page.getByTestId("history-item").first()).toContainText("北白川");
+});
+
+test("終了時にトレーニング時間の内訳が出て、修正でき、履歴に表示される", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByTestId("prefer-dumbbell").check();
+  await startWorkout(page);
+  await expect(page.locator('[data-exercise-id^="db_"]').first()).toBeVisible();
+  await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();
+  await page.getByRole("button", { name: "休憩タイマーを閉じる" }).click();
+  await page.getByTestId("finish").click();
+  const editor = page.getByTestId("duration-editor");
+  await expect(editor).toBeVisible();
+  await editor.getByLabel("ダンベルの時間", { exact: true }).fill("35");
+  await editor.getByLabel("ダンベルの時間", { exact: true }).press("Enter");
+  await editor.getByLabel("合計の時間", { exact: true }).fill("50");
+  await editor.getByLabel("合計の時間", { exact: true }).press("Enter");
+  await page.getByTestId("finish-confirm").click();
+  await expect(page.getByTestId("durations")).toContainText("合計50分");
+  await expect(page.getByTestId("durations")).toContainText("ダンベル35");
+  await page.goto("/history");
+  await expect(page.getByTestId("history-item").first()).toContainText("50分（ダンベル35分）");
+});
+
+test("復元コードが違うと取り込めず、初回設定に取り込み項目は無い", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.goto("/");
+  await expect(p).toHaveURL(/\/welcome/);
+  await expect(p.getByText("既存の履歴")).toHaveCount(0);
+  await p.goto("/restore");
+  await p.getByTestId("restore-code").fill("wrong");
+  await p.getByTestId("restore-submit").click();
+  await expect(p.getByText("復元コードが違います")).toBeVisible();
+  await ctx.close();
 });

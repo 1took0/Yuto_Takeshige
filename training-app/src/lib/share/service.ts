@@ -1,5 +1,6 @@
 import type { KV } from "./kv";
 import { sanitizeWorkout, type SharedWorkout } from "./sanitize";
+import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 
 /**
  * 記録共有のサーバー側ロジック
@@ -23,6 +24,14 @@ export interface PublicUser {
   workoutCount: number;
   lastDate?: string;
   updatedAt: string;
+  /** 直近7日（トレーニング日基準）の回数と時間 */
+  week?: { sessions: number; totalMin: number; dumbbellMin: number; machineMin: number; cardioMin: number };
+}
+
+export function weekStats(ws: SharedWorkout[], today = trainingDateOf()): NonNullable<PublicUser["week"]> {
+  const recent = ws.filter((w) => diffDays(today, w.trainingDate) < 7 && diffDays(today, w.trainingDate) >= 0);
+  const sum = (k: "totalMin" | "dumbbellMin" | "machineMin" | "cardioMin") => recent.reduce((a, w) => a + (w.durations?.[k] ?? 0), 0);
+  return { sessions: recent.length, totalMin: sum("totalMin"), dumbbellMin: sum("dumbbellMin"), machineMin: sum("machineMin"), cardioMin: sum("cardioMin") };
 }
 
 export interface FeedItem {
@@ -164,7 +173,7 @@ export async function getFeed(kv: KV, limit = 40): Promise<{ users: PublicUser[]
       const p = await getProfile(kv, id);
       if (!p) return;
       const ws = parseWorkouts(await kv.hgetall(wKey(id)));
-      users.push({ userId: id, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt });
+      users.push({ userId: id, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws) });
       for (const w of ws.slice(0, limit)) recent.push({ userId: id, displayName: p.displayName, workout: w });
     }),
   );
@@ -177,5 +186,5 @@ export async function getUserWorkouts(kv: KV, userId: string): Promise<{ user: P
   const p = await getProfile(kv, userId);
   if (!p) return null;
   const ws = parseWorkouts(await kv.hgetall(wKey(userId)));
-  return { user: { userId, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt }, workouts: ws };
+  return { user: { userId, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws) }, workouts: ws };
 }

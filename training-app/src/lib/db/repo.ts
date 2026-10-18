@@ -2,7 +2,6 @@ import { db } from "./index";
 import type { CardioPreference, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
 import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
-import { SEED_VERSION, buildSeedWorkouts } from "@/lib/seed/history";
 
 export const DEFAULT_SETTINGS: Settings = {
   id: "settings",
@@ -58,17 +57,7 @@ export async function ensureSeeded(): Promise<void> {
   }
 }
 
-/** 既存履歴（アプリ作成者の記録）を取り込む。初回設定で本人が選んだ場合のみ */
-export async function importSeedHistory(): Promise<number> {
-  const seeds = buildSeedWorkouts();
-  const existingIds = new Set((await db().workouts.toArray()).map((w) => w.id));
-  const toAdd = seeds.filter((w) => !existingIds.has(w.id));
-  if (toAdd.length) await db().workouts.bulkPut(toAdd);
-  await updateSettings({ seedVersion: SEED_VERSION });
-  if (toAdd.length) notify({ type: "bulk" });
-  return toAdd.length;
-}
-
+/** 取り込み済みの過去記録の件数 */
 export async function countImportedSeed(): Promise<number> {
   return (await db().workouts.toArray()).filter((w) => w.source === "import").length;
 }
@@ -76,6 +65,14 @@ export async function countImportedSeed(): Promise<number> {
 export async function bulkPutWorkouts(ws: Workout[]): Promise<void> {
   await db().workouts.bulkPut(ws);
   notify({ type: "bulk" });
+}
+
+/** 記録を取り込む（同じIDがあれば上書きしない）。追加件数を返す */
+export async function importWorkouts(ws: Workout[]): Promise<number> {
+  const existing = new Set((await db().workouts.toArray()).map((w) => w.id));
+  const toAdd = ws.filter((w) => !existing.has(w.id));
+  if (toAdd.length) await bulkPutWorkouts(toAdd);
+  return toAdd.length;
 }
 
 // ---------- Workouts ----------

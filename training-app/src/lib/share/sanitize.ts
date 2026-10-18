@@ -19,6 +19,7 @@ const SetSchema = z.object({
   left: side,
   right: side,
   completed: z.boolean(),
+  completedAt: str(40),
   excluded: z.boolean(),
   feel: z.enum(["easy", "ok", "hard"]).optional(),
   note: str(200),
@@ -72,6 +73,10 @@ export const SharedWorkoutSchema = z.object({
   status: z.literal("completed"),
   source: z.enum(["app", "import"]),
   notes: str(500),
+  durations: z
+    .object({ totalMin: num, machineMin: num, dumbbellMin: num, bodyweightMin: num, cardioMin: num, manual: z.boolean().optional() })
+    .partial()
+    .optional(),
   createdAt: z.string().max(40),
   updatedAt: z.string().max(40),
 });

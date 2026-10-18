@@ -21,7 +21,7 @@ export default defineConfig({
     ? undefined
     : {
         // 記録共有のテスト用にファイル保存・保護なしで共有を許可して起動する
-        command: `SHARE_STORE=file SHARE_FILE=.data/e2e-share.json ALLOW_PUBLIC_SHARE=1 npx next start -p ${PORT}`,
+        command: `OWNER_RESTORE_CODE=e2e-owner SHARE_STORE=file SHARE_FILE=.data/e2e-share.json ALLOW_PUBLIC_SHARE=1 npx next start -p ${PORT}`,
         url: `http://localhost:${PORT}`,
         reuseExistingServer: true,
         timeout: 120_000,

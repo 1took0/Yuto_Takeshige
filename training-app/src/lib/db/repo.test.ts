@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { TrainingDB, setDb } from "./index";
-import { countImportedSeed, ensureSeeded, importSeedHistory, listCompletedWorkouts, listStoreEquipment, saveWorkout, deleteWorkout, setWorkoutChangeListener } from "./repo";
+import { countImportedSeed, ensureSeeded, importWorkouts, listCompletedWorkouts, listStoreEquipment, saveWorkout, deleteWorkout, setWorkoutChangeListener } from "./repo";
 import { buildSeedWorkouts } from "@/lib/seed/history";
 
 let n = 0;
@@ -15,9 +15,9 @@ describe("repo", () => {
     expect((await listStoreEquipment()).length).toBeGreaterThan(10);
     expect(await listCompletedWorkouts()).toHaveLength(0);
   });
-  it("本人が選んだときだけ作成者の履歴を取り込む（重複しない）", async () => {
-    expect(await importSeedHistory()).toBe(12);
-    expect(await importSeedHistory()).toBe(0);
+  it("記録の取り込みは重複しない", async () => {
+    expect(await importWorkouts(buildSeedWorkouts())).toBe(12);
+    expect(await importWorkouts(buildSeedWorkouts())).toBe(0);
     expect(await countImportedSeed()).toBe(12);
   });
   it("完了済み記録の保存・削除で変更通知が出る（進行中は通知しない）", async () => {

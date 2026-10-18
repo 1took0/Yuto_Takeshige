@@ -1,6 +1,7 @@
 import type { ExerciseDef, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { getExercise } from "@/lib/catalog/exercises";
 import { newId } from "@/lib/id";
+import { computeDurations } from "./duration";
 
 /**
  * ワークアウト編集の純粋関数群
@@ -25,7 +26,8 @@ export function updateSet(w: Workout, exId: string, setId: string, patch: Partia
 
 export function toggleSetCompleted(w: Workout, exId: string, setId: string): Workout {
   return mapExercise(w, exId, (e) => {
-    const sets = e.sets.map((s) => (s.id === setId ? { ...s, completed: !s.completed, excluded: s.completed ? s.excluded : false } : s));
+    const now = new Date().toISOString();
+    const sets = e.sets.map((s) => (s.id === setId ? { ...s, completed: !s.completed, excluded: s.completed ? s.excluded : false, completedAt: s.completed ? undefined : now } : s));
     const anyDone = sets.some((s) => s.completed);
     return { ...e, sets, status: anyDone ? (e.status === "skipped" ? "planned" : e.status) : e.status };
   });
@@ -199,8 +201,13 @@ export function progressOf(w: Workout): Progress {
   };
 }
 
-/** トレーニングを終了。未完了セットは記録から除外する（データは残す） */
+/** トレーニングを終了。未完了セットは記録から除外する（データは残す）。時間の内訳も計算する */
 export function finalizeWorkout(w: Workout, endedAt = new Date().toISOString()): Workout {
+  const done = finalizeSets(w, endedAt);
+  return { ...done, durations: w.durations?.manual ? w.durations : computeDurations(done) };
+}
+
+function finalizeSets(w: Workout, endedAt: string): Workout {
   return {
     ...w,
     status: "completed",

@@ -129,6 +129,8 @@ export interface WorkoutSet {
   left?: SideRecord;
   right?: SideRecord;
   completed: boolean;
+  /** 完了チェックを付けた時刻（ISO）。種目ごとの所要時間の計算に使う */
+  completedAt?: string;
   /** 未実施として記録から除外 */
   excluded: boolean;
   /** 体感 */
@@ -207,6 +209,17 @@ export interface CardioEntry {
   rationale?: string;
 }
 
+/** トレーニング時間の内訳（分） */
+export interface WorkoutDurations {
+  totalMin?: number;
+  machineMin?: number;
+  dumbbellMin?: number;
+  bodyweightMin?: number;
+  cardioMin?: number;
+  /** 利用者が手で修正した */
+  manual?: boolean;
+}
+
 export interface Pain {
   present: boolean;
   description?: string;
@@ -237,6 +250,8 @@ export interface Workout {
   storeId: StoreId;
   /** 記録時点の店舗名（店舗の削除後や、他の人の記録の表示に使う） */
   storeLabel?: string;
+  /** トレーニング時間の内訳（分）。終了時に自動計算し、手で修正もできる */
+  durations?: WorkoutDurations;
   intake?: IntakeAnswers;
   exercises: WorkoutExercise[];
   cardio: CardioEntry[];
@@ -297,6 +312,8 @@ export interface Goals {
   favoriteExerciseIds: string[];
   /** ランニング実績がないときの開始速度(km/h) */
   runStartSpeedKmh: number;
+  /** マシンよりダンベル種目を優先する */
+  preferDumbbell?: boolean;
 }
 
 /** 計画の構造化パッチ（AI/ルールエンジンは予定のみ変更し、実績には触れない） */

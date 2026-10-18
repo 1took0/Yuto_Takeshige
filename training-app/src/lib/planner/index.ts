@@ -43,19 +43,19 @@ interface Slot {
 }
 
 const SLOTS: Slot[] = [
-  { key: "legs_compound", candidates: ["leg_press"], regions: ["legs", "glutes"], base: 100, core: true },
-  { key: "hamstrings", candidates: ["leg_curl"], regions: ["legs"], base: 92, core: true },
-  { key: "glutes", candidates: ["abductor", "hip_thrust"], regions: ["glutes"], base: 90, core: true },
-  { key: "chest_press", candidates: ["chest_press"], regions: ["chest"], base: 98, core: true },
+  { key: "legs_compound", candidates: ["leg_press", "db_goblet_squat"], regions: ["legs", "glutes"], base: 100, core: true },
+  { key: "hamstrings", candidates: ["leg_curl", "db_rdl"], regions: ["legs"], base: 92, core: true },
+  { key: "glutes", candidates: ["abductor", "hip_thrust", "db_lunge"], regions: ["glutes"], base: 90, core: true },
+  { key: "chest_press", candidates: ["chest_press", "db_bench_press"], regions: ["chest"], base: 98, core: true },
   { key: "back_vertical", candidates: ["lat_pulldown", "assisted_chin", "pulldown_trainer"], regions: ["back"], base: 98, core: true },
-  { key: "back_horizontal", candidates: ["seated_row", "plate_row"], regions: ["back"], base: 95, core: true },
+  { key: "back_horizontal", candidates: ["seated_row", "plate_row", "db_row"], regions: ["back"], base: 95, core: true },
   { key: "abs", candidates: ["abdominal"], regions: ["abs"], base: 93, core: true },
-  { key: "chest_iso", candidates: ["pec_fly"], regions: ["chest"], base: 80 },
+  { key: "chest_iso", candidates: ["pec_fly", "db_fly"], regions: ["chest"], base: 80 },
   { key: "biceps_hammer", candidates: ["db_hammer_curl_single"], regions: ["arms"], base: 82 },
-  { key: "triceps", candidates: ["triceps"], regions: ["arms"], base: 80 },
+  { key: "triceps", candidates: ["triceps", "db_kickback"], regions: ["arms"], base: 80 },
   { key: "biceps", candidates: ["biceps_curl", "db_curl_single"], regions: ["arms"], base: 78 },
   { key: "core", candidates: ["side_plank", "plank"], regions: ["abs"], base: 76 },
-  { key: "shoulders", candidates: ["shoulder_press"], regions: ["shoulders"], base: 70 },
+  { key: "shoulders", candidates: ["shoulder_press", "db_shoulder_press", "db_lateral_raise"], regions: ["shoulders"], base: 70 },
   { key: "quads_iso", candidates: ["leg_extension"], regions: ["legs"], base: 66 },
   { key: "abs_2", candidates: ["knee_leg_raise"], regions: ["abs"], base: 64 },
   { key: "hip_thrust_extra", candidates: ["hip_thrust"], regions: ["glutes"], base: 62 },
@@ -248,6 +248,8 @@ export function generatePlan(input: PlanInput): PlanResult {
       // 目標：握力・前腕 → ハンマーカール、腰痛対策 → 体幹・腰
       if (goals.objectives.includes("grip") && exId === "db_hammer_curl_single") score += 5;
       if (goals.objectives.includes("lowback") && (slot.key === "core" || slot.key === "lower_back")) score += 8;
+      // 目標：ダンベル優先
+      if (goals.preferDumbbell && def.equipmentId === "dumbbells") score += 25;
       // 器具未確認の店舗は少し下げる
       if (!av.confirmed) {
         score -= 5;

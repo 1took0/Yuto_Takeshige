@@ -15,6 +15,8 @@ import { ConfirmDialog } from "@/components/ui/Sheet";
 import { addExercise } from "@/lib/workout/edit";
 import { countedSets } from "@/lib/planner/history";
 import { useToast } from "@/components/ui/Toast";
+import { DurationEditor } from "@/components/workout/DurationEditor";
+import { formatDurations } from "@/lib/workout/duration";
 
 export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boolean }) {
   const fromDb = useLiveQuery(() => getWorkout(id), [id]);
@@ -102,6 +104,10 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
               ))}
             </select>
           </label>
+          <div>
+            <div className="mb-1 text-muted">トレーニング時間</div>
+            <DurationEditor value={w.durations} onChange={(d) => mutate((x) => ({ ...x, durations: d }))} />
+          </div>
           <label className="flex items-center gap-2">
             <span className="w-20 text-muted">メモ</span>
             <input className="input" value={w.notes ?? ""} onChange={(e) => mutate((x) => ({ ...x, notes: e.target.value }))} aria-label="メモ" />
@@ -155,8 +161,14 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
 export function ReadOnlyView({ w }: { w: Workout }) {
   const [showExcluded, setShowExcluded] = useState(false);
   const anyExcluded = w.exercises.some((e) => e.sets.some((s) => s.excluded || !s.completed));
+  const dur = formatDurations(w.durations);
   return (
     <div className="space-y-2">
+      {dur && (
+        <p className="rounded-xl bg-accent-soft px-3 py-2 text-sm" data-testid="durations">
+          ⏱ {dur}
+        </p>
+      )}
       {w.cardio.map((c) => (
         <div key={c.id} className="card p-3 text-sm">
           <div className="font-semibold">

@@ -8,6 +8,7 @@ import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import type { Workout } from "@/lib/types";
+import { formatDurations } from "@/lib/workout/duration";
 
 /** みんなの記録（共有している利用者のみ） */
 export function CommunityView() {
@@ -79,6 +80,7 @@ export function CommunityView() {
                       </span>
                       <span className="block text-xs text-muted">
                         {u.workoutCount}回 ・ 最終 {u.lastDate ? `${formatJaDate(u.lastDate)}（${diffDays(today, u.lastDate)}日前）` : "—"}
+                        {u.week?.totalMin ? ` ・ 直近7日 ${u.week.sessions}回 ${u.week.totalMin}分${u.week.dumbbellMin ? `（ダンベル${u.week.dumbbellMin}分）` : ""}` : ""}
                       </span>
                     </span>
                     <span className="text-muted">›</span>
@@ -120,6 +122,11 @@ function FeedCard({ item, isMe }: { item: FeedItem; isMe: boolean }) {
         {w.exercises.filter((e) => countedSets(e).length).length}種目・{sets}セット
         {tm?.actual?.runMin ? `・ラン${tm.actual.runMin}分${tm.actual.runSpeedKmh ? `（${tm.actual.runSpeedKmh}km/h）` : ""}` : tm?.actual?.totalMin ? `・トレッドミル${tm.actual.totalMin}分` : ""}
       </div>
+      {w.durations?.totalMin ? (
+        <div className="mt-1 text-xs" data-testid="feed-durations">
+          ⏱ {formatDurations(w.durations)}
+        </div>
+      ) : null}
       <div className="mt-1 truncate text-sm">
         {w.exercises
           .filter((e) => countedSets(e).length)

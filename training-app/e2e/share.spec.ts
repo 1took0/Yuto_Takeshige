@@ -16,10 +16,15 @@ async function onboard(page: Page, name: string, opts: { importSeed?: boolean; s
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome/);
   await page.getByTestId("welcome-name").fill(name);
-  if (opts.importSeed) await page.getByTestId("welcome-import").check();
   if (opts.share) await page.getByTestId("welcome-share").check();
   await page.getByTestId("welcome-submit").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
+  if (opts.importSeed) {
+    await page.goto("/restore");
+    await page.getByTestId("restore-code").fill("e2e-owner");
+    await page.getByTestId("restore-submit").click();
+    await expect(page.getByText("12件の記録を取り込みました")).toBeVisible();
+  }
 }
 
 test("新しい利用者は空の履歴から始まり、目標を設定できる", async ({ browser }) => {
@@ -104,6 +109,7 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
       { timeout: 15_000 },
     )
     .toContain("1回");
+  await expect(b.getByTestId("feed-item").filter({ hasText: nameB }).first().getByTestId("feed-durations")).toContainText("合計");
 
   for (const p of [a, b, c]) await p.context().close();
 });

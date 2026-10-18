@@ -55,4 +55,21 @@ describe("人ごとの目標", () => {
     expect(at60(DEFAULT_GOALS)).not.toContain("shoulder_press");
     expect(at60({ ...DEFAULT_GOALS, favoriteExerciseIds: ["shoulder_press"] })).toContain("shoulder_press");
   });
+
+  it("ダンベル優先にするとダンベル種目が選ばれる。通常はマシン", () => {
+    const ids = (g: Goals) => plan(g).exercises.map((e) => e.exerciseId);
+    const normal = ids(DEFAULT_GOALS);
+    expect(normal).toContain("chest_press");
+    expect(normal).not.toContain("db_bench_press");
+    const db = ids({ ...DEFAULT_GOALS, preferDumbbell: true });
+    expect(db).toContain("db_bench_press");
+    expect(db).toContain("db_row");
+    expect(db).not.toContain("chest_press");
+  });
+
+  it("マシンが無い店舗ではダンベル種目で代替する", () => {
+    const eq = equipment.map((r) => (r.storeId === "ichijoji" && r.equipmentId === "chest_press_machine" ? { ...r, available: false } : r));
+    const w = generatePlan({ intake, history: buildSeedWorkouts(), storeEquipment: eq, settings: { excludedExerciseIds: [], goals: DEFAULT_GOALS }, now }).workout;
+    expect(w.exercises.map((e) => e.exerciseId)).toContain("db_bench_press");
+  });
 });

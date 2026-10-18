@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useSettings } from "@/hooks/useSettings";
 import { db } from "@/lib/db";
-import { listAllWorkouts, listStoreEquipment, setStoreEquipment, wipeAll, ensureSeeded, importSeedHistory, bulkPutWorkouts, getSettings } from "@/lib/db/repo";
+import { listAllWorkouts, listStoreEquipment, setStoreEquipment, wipeAll, ensureSeeded, bulkPutWorkouts, getSettings } from "@/lib/db/repo";
 import { GoalsEditor } from "./GoalsEditor";
 import { ShareSettings } from "./ShareSettings";
 import { goalsOrDefault } from "@/lib/goals";
@@ -12,7 +12,7 @@ import { StoreManager } from "./StoreManager";
 import { useStores } from "@/hooks/useSettings";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { EXERCISES } from "@/lib/catalog/exercises";
-import type { StoreId } from "@/lib/types";
+import type { Goals, StoreId } from "@/lib/types";
 import { cardioToCSV, downloadText, parseImport, setsToCSV, toJSON } from "@/lib/export";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
@@ -28,7 +28,7 @@ export function SettingsView() {
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
   const [confirmWipe, setConfirmWipe] = useState(false);
-  const [confirmSeed, setConfirmSeed] = useState(false);
+  const [goalsDraft, setGoalsDraft] = useState<Goals | null>(null);
   const [importPreview, setImportPreview] = useState<{ count: number; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -150,7 +150,14 @@ export function SettingsView() {
       </Section>
 
       <Section title="目標（メニュー作成の前提）" hint="変更は次のメニュー作成から反映されます。">
-        <GoalsEditor value={goalsOrDefault(settings.goals)} onChange={(g) => update({ goals: g })} />
+        <GoalsEditor
+          value={goalsDraft ?? goalsOrDefault(settings.goals)}
+          onChange={(g) => {
+            // 保存の完了を待たずに画面へ反映する
+            setGoalsDraft(g);
+            void update({ goals: g });
+          }}
+        />
       </Section>
 
       <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
@@ -186,30 +193,12 @@ export function SettingsView() {
             JSON インポート
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onImportFile(e.target.files[0])} />
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => setConfirmSeed(true)}
-          >
-            作成者の履歴を取り込む
-          </button>
           <button type="button" className="btn-danger col-span-2" onClick={() => setConfirmWipe(true)}>
             すべてのデータを削除
           </button>
         </div>
       </Section>
 
-      <ConfirmDialog
-        open={confirmSeed}
-        title="作成者の過去の記録を取り込みますか？"
-        message="2026/9/20〜10/16 の12回分です。アプリ作成者本人以外は取り込まないでください。"
-        confirmLabel="取り込む"
-        onConfirm={async () => {
-          const n = await importSeedHistory();
-          toast(n ? `${n}件を取り込みました` : "すでに取り込み済みです");
-        }}
-        onClose={() => setConfirmSeed(false)}
-      />
       <ConfirmDialog open={!!importPreview} title={`${importPreview?.count ?? 0}件の記録を取り込みますか？`} message="同じIDの記録は上書きされます。" confirmLabel="取り込む" onConfirm={doImport} onClose={() => setImportPreview(null)} />
       <ConfirmDialog
         open={confirmWipe}

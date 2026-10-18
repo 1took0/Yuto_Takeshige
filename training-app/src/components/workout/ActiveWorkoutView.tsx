@@ -15,6 +15,8 @@ import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { clearTimer } from "@/hooks/useTimer";
 import { useToast } from "@/components/ui/Toast";
+import { DurationEditor } from "./DurationEditor";
+import type { WorkoutDurations } from "@/lib/types";
 import { CoachInput } from "@/components/coach/CoachInput";
 
 export function ActiveWorkoutView() {
@@ -25,6 +27,7 @@ export function ActiveWorkoutView() {
   const [collapsedState, setCollapsed] = useState<Record<string, boolean> | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showFinish, setShowFinish] = useState(false);
+  const [durDraft, setDurDraft] = useState<WorkoutDurations | undefined>(undefined);
   const [rest, setRest] = useState<{ sec: number; nonce: number } | null>(null);
   const [showCoach, setShowCoach] = useState(false);
 
@@ -68,7 +71,7 @@ export function ActiveWorkoutView() {
   };
 
   const finish = async () => {
-    const done = finalizeWorkout(w);
+    const done = finalizeWorkout({ ...w, durations: durDraft?.manual ? durDraft : undefined });
     await setWorkout(null);
     const { saveWorkout, rememberIntakeDefaults } = await import("@/lib/db/repo");
     await saveWorkout(done);
@@ -144,7 +147,11 @@ export function ActiveWorkoutView() {
             )}
           </div>
           <div className="grid grid-cols-1 gap-2 pt-2">
-            <button type="button" className="btn-primary w-full py-4 text-lg" onClick={() => setShowFinish(true)} data-testid="finish">
+            <button type="button" className="btn-primary w-full py-4 text-lg" onClick={() => {
+                setDurDraft(finalizeWorkout(w).durations);
+                setShowFinish(true);
+              }}
+              data-testid="finish">
               トレーニングを終了・保存
             </button>
             <Link href="/timer/rest" className="btn-secondary">
@@ -165,6 +172,10 @@ export function ActiveWorkoutView() {
           </p>
           {progress.plannedSets - progress.doneSets > 0 && <p className="rounded-lg bg-warn-soft p-2 text-warn">未完了のセットが {progress.plannedSets - progress.doneSets} 件あります。これらは「未実施」として記録から除外されます（保存後に履歴から修正できます）。</p>}
           {w.cardio.some((c) => !c.completed && !c.skipped) && <p className="rounded-lg bg-card-2 p-2 text-muted">未完了の有酸素があります。実施した場合は各カードで実績を入力して「完了にする」を押してください。</p>}
+          <div className="rounded-xl bg-card-2 p-3">
+            <div className="mb-2 text-xs font-semibold text-muted">トレーニング時間（自動計算・修正できます）</div>
+            <DurationEditor value={durDraft} onChange={setDurDraft} />
+          </div>
           <button type="button" className="btn-primary w-full py-4 text-lg" onClick={finish} data-testid="finish-confirm">
             保存して終了
           </button>
