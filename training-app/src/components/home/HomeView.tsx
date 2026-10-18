@@ -79,7 +79,7 @@ export function HomeView() {
           ⏱ タイマー
         </Link>
         <Link href="/coach" className="btn-secondary">
-          💬 AIコーチ
+          💬 コーチに相談
         </Link>
       </section>
     </div>

@@ -6,7 +6,7 @@ const SUGGESTIONS = ["ジムに来た", "今日は脚が疲れている", "あ�
 
 /** チャット入力（ホーム・ワークアウト画面に埋め込む簡易版） */
 export function CoachInput({ compact }: { compact?: boolean }) {
-  const { messages, send, busy, aiEnabled } = useCoach();
+  const { messages, send, busy } = useCoach();
   const [text, setText] = useState("");
   const last = messages[messages.length - 1];
   const submit = () => {
@@ -20,7 +20,6 @@ export function CoachInput({ compact }: { compact?: boolean }) {
         <div className="rounded-xl bg-card-2 p-2 text-sm" data-testid="coach-reply">
           <div className="whitespace-pre-wrap">{last.content}</div>
           {last.applied && last.applied.length > 0 && <ul className="mt-1 list-disc pl-4 text-xs text-success">{last.applied.map((a) => <li key={a}>{a}</li>)}</ul>}
-          <div className="mt-1 text-[10px] text-muted">{last.source === "claude" ? "Claude" : "ルールベース"}</div>
         </div>
       )}
       <form
@@ -42,7 +41,6 @@ export function CoachInput({ compact }: { compact?: boolean }) {
           </button>
         ))}
       </div>
-      {aiEnabled === false && !compact && <p className="text-[11px] text-muted">Claude API は未設定のため、ルールベースで応答しています（履歴・進捗・タイマー・メニュー作成はすべて利用できます）。</p>}
     </div>
   );
 }

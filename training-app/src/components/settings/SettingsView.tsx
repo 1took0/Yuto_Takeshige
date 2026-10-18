@@ -24,7 +24,6 @@ export function SettingsView() {
   const [importPreview, setImportPreview] = useState<{ count: number; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
-  const [aiStatus, setAiStatus] = useState<string | null>(null);
 
   const rows = EQUIPMENT.map((eq) => ({ eq, row: equipment.find((r) => r.equipmentId === eq.id) })).sort((a, b) => Number(!!b.row) - Number(!!a.row));
 
@@ -53,15 +52,6 @@ export function SettingsView() {
     if (bundle.storeEquipment?.length) await db().storeEquipment.bulkPut(bundle.storeEquipment);
     toast(`${bundle.workouts.length}件を取り込みました（同じIDは上書き）`, "success");
     setImportPreview(null);
-  };
-  const checkAI = async () => {
-    try {
-      const r = await fetch("/api/coach");
-      const j = await r.json();
-      setAiStatus(j.enabled ? `有効（${j.model}）` : "未設定（ルールベースで動作）");
-    } catch {
-      setAiStatus("確認できませんでした");
-    }
   };
 
   return (
@@ -177,14 +167,6 @@ export function SettingsView() {
         </button>
       </Section>
 
-      <Section title="AIコーチ（Claude API）" hint="API キーはサーバーの環境変数 ANTHROPIC_API_KEY にのみ設定します。ブラウザには送られません。未設定でも履歴・進捗・タイマー・ルールベースのメニュー作成は動作します。">
-        <div className="flex items-center gap-2 text-sm">
-          <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={checkAI}>
-            接続状態を確認
-          </button>
-          <span className="text-muted">{aiStatus ?? ""}</span>
-        </div>
-      </Section>
 
       <Section title="データ" hint={`記録 ${workouts.length} 件（この端末の IndexedDB に保存）。将来のクラウド同期に備えて JSON で全件エクスポートできます。`}>
         <div className="grid grid-cols-2 gap-2">

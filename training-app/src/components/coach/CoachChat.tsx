@@ -4,7 +4,7 @@ import { useCoach } from "./useCoach";
 import { CoachInput } from "./CoachInput";
 
 export function CoachChat() {
-  const { messages, aiEnabled, aiModel, mode, setMode, clear, hasWorkout } = useCoach();
+  const { messages, clear, hasWorkout } = useCoach();
   const endRef = useRef<HTMLDivElement>(null);
   const [showInfo, setShowInfo] = useState(false);
   useEffect(() => {
@@ -14,29 +14,24 @@ export function CoachChat() {
   return (
     <div className="flex min-h-[70dvh] flex-col">
       <header className="flex items-center justify-between pb-2">
-        <h1 className="text-2xl font-bold">AIコーチ</h1>
-        <div className="flex items-center gap-2 text-xs">
-          <span className={`rounded-full px-2 py-0.5 ${aiEnabled ? "bg-success-soft text-success" : "bg-card-2 text-muted"}`}>{aiEnabled === null ? "確認中" : aiEnabled ? `Claude (${aiModel})` : "ルールベース"}</span>
-          <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setShowInfo((v) => !v)}>
-            ℹ︎
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold">コーチ</h1>
+        <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setShowInfo((v) => !v)} aria-label="使い方">
+          ℹ︎
+        </button>
       </header>
       {showInfo && (
         <div className="mb-2 space-y-2 rounded-xl bg-card-2 p-3 text-xs text-muted">
-          <p>
-            <b>APIキーなしで使える機能：</b>履歴・進捗管理、タイマー、ルールベースのメニュー作成、定型の相談（「ジムに来た」「脚が疲れている」「あと20分」「このマシンがない」「重量を上げてもいい？」「ランニングをやめたい」）。
-          </p>
-          <p>
-            <b>APIキーが必要な機能：</b>自由な自然言語での相談とメニュー再構成（Claude）。サーバーの環境変数 <code>ANTHROPIC_API_KEY</code> に設定します。キーはブラウザには送られません。
-          </p>
-          <p>Claude の提案は「予定」にだけ反映されます。完了済みセットや実績は AI から変更されません。</p>
-          {aiEnabled && (
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={mode === "rule"} onChange={(e) => setMode(e.target.checked ? "rule" : "auto")} />
-              この会話では Claude を使わない（ルールベースのみ）
-            </label>
-          )}
+          <p>定型の相談に対応しています（外部サービスは使わず無料で動作します）：</p>
+          <ul className="list-disc pl-4">
+            <li>「ジムに来た」…ヒアリングを開始</li>
+            <li>「今日は脚が疲れている」…該当部位の負荷とセット数を下げる</li>
+            <li>「あと20分しかない」…残り時間に合わせて種目を絞る</li>
+            <li>「レッグプレスのマシンがない」…代替種目に置き換え</li>
+            <li>「チェストプレスの重量を上げてもいい？」…実績から判断</li>
+            <li>「今日はランニングをやめたい」…ウォーキングに変更</li>
+            <li>「ハンマーカールを追加して」「ペックフライを外して」</li>
+          </ul>
+          <p>提案は「予定」にだけ反映されます。完了済みセットや実績は変更されません。</p>
           <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={clear}>
             会話をクリア
           </button>
@@ -57,7 +52,6 @@ export function CoachChat() {
                 </ul>
               )}
               {m.skipped && m.skipped.length > 0 && <div className="mt-1 text-[10px] text-muted">適用できなかった操作：{m.skipped.join("、")}</div>}
-              {m.role === "assistant" && <div className="mt-1 text-[10px] text-muted">{m.source === "claude" ? "Claude" : "ルールベース"}</div>}
             </div>
           </div>
         ))}

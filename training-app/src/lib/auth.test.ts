@@ -28,6 +28,6 @@ describe("auth", () => {
     expect(isPublicPath("/icons/icon-192.png")).toBe(true);
     expect(isPublicPath("/login")).toBe(true);
     expect(isPublicPath("/")).toBe(false);
-    expect(isPublicPath("/api/coach")).toBe(false);
+    expect(isPublicPath("/workout")).toBe(false);
   });
 });

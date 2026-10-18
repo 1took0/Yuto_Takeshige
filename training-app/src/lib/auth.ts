@@ -2,7 +2,7 @@
  * 簡易アクセス保護（共有パスワード）
  * - サーバー環境変数 APP_PASSWORD が設定されているときだけ有効
  * - Cookie には パスワード本体ではなく SHA-256 ハッシュ（ソルト付き）を保存
- * - 個人利用の PWA を無料ホスティングで公開する際に、第三者の利用（特に Claude API の消費）を防ぐ目的
+ * - 個人利用の PWA を無料ホスティングで公開する際に、第三者の利用を防ぐ目的
  */
 export const AUTH_COOKIE = "tc_auth";
 const SALT = "training-coach-auth-v1";
