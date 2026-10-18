@@ -99,7 +99,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
     try {
       const intake = buildIntake();
       const [history, equipment] = await Promise.all([listCompletedWorkouts(), listStoreEquipment()]);
-      const { workout } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: settings?.excludedExerciseIds ?? [] } });
+      const { workout } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: settings?.excludedExerciseIds ?? [], goals: settings?.goals } });
       await setWorkout(workout);
       await rememberIntakeDefaults(storeId, timeLimit, cardio);
       router.push("/workout");

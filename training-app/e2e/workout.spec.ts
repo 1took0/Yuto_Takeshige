@@ -3,6 +3,17 @@ import { test, expect, type Page } from "@playwright/test";
 /**
  * E2E：トレーニング開始 → メニュー作成 → セット編集 → 再読み込みで復元 → 終了・保存 → 履歴
  */
+/** 初回設定（はじめに）を完了する */
+async function onboard(page: Page, opts: { name?: string; importSeed?: boolean; share?: boolean } = {}) {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/welcome/);
+  await page.getByTestId("welcome-name").fill(opts.name ?? "テスト");
+  if (opts.importSeed ?? true) await page.getByTestId("welcome-import").check();
+  if (opts.share) await page.getByTestId("welcome-share").check();
+  await page.getByTestId("welcome-submit").click();
+  await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
+}
+
 async function startWorkout(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
@@ -23,6 +34,7 @@ test.beforeEach(async ({ page }) => {
     localStorage.clear();
     sessionStorage.clear();
   });
+  await onboard(page);
 });
 
 test("初期履歴が取り込まれている", async ({ page }) => {

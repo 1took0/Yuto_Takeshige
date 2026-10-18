@@ -207,7 +207,7 @@ export function AnalyticsView() {
       </Card>
 
       {/* 左右差 */}
-      <Card title="左右の筋力差（片手種目の最新記録）" sub="左が弱い前提で、右は左に合わせています。実回数を入力すると差を把握しやすくなります">
+      <Card title="左右の筋力差（片手種目の最新記録）" sub="片手種目の左右の重量と実回数です。実回数を入力すると差を把握しやすくなります">
         {lateral.length === 0 ? (
           <p className="text-sm text-muted">片手種目の記録がありません</p>
         ) : (

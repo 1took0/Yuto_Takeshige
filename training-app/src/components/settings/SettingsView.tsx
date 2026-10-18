@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useSettings } from "@/hooks/useSettings";
 import { db } from "@/lib/db";
-import { listAllWorkouts, listStoreEquipment, setStoreEquipment, wipeAll, ensureSeeded, updateSettings } from "@/lib/db/repo";
+import { listAllWorkouts, listStoreEquipment, setStoreEquipment, wipeAll, ensureSeeded, importSeedHistory, bulkPutWorkouts, getSettings } from "@/lib/db/repo";
+import { GoalsEditor } from "./GoalsEditor";
+import { ShareSettings } from "./ShareSettings";
+import { goalsOrDefault } from "@/lib/goals";
 import { STORES } from "@/lib/catalog/stores";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { EXERCISES } from "@/lib/catalog/exercises";
@@ -12,6 +15,7 @@ import type { StoreId } from "@/lib/types";
 import { cardioToCSV, downloadText, parseImport, setsToCSV, toJSON } from "@/lib/export";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
+import { disableSharing } from "@/lib/share/client";
 import { musclesLabel } from "@/lib/catalog/muscles";
 
 export function SettingsView() {
@@ -21,6 +25,7 @@ export function SettingsView() {
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [confirmSeed, setConfirmSeed] = useState(false);
   const [importPreview, setImportPreview] = useState<{ count: number; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -48,7 +53,7 @@ export function SettingsView() {
   const doImport = async () => {
     if (!importPreview) return;
     const bundle = parseImport(importPreview.text);
-    await db().workouts.bulkPut(bundle.workouts);
+    await bulkPutWorkouts(bundle.workouts);
     if (bundle.storeEquipment?.length) await db().storeEquipment.bulkPut(bundle.storeEquipment);
     toast(`${bundle.workouts.length}件を取り込みました（同じIDは上書き）`, "success");
     setImportPreview(null);
@@ -57,6 +62,8 @@ export function SettingsView() {
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">設定</h1>
+
+      <ShareSettings />
 
       <Section title="表示">
         <div className="flex gap-2">
@@ -137,14 +144,8 @@ export function SettingsView() {
         </ul>
       </Section>
 
-      <Section title="目標（メニュー作成の前提）">
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
-          <li>重点：下半身・胸・背中・腹筋・体幹（全身をバランスよく）</li>
-          <li>お尻の強化、腰まわりの安定性と腰痛対策、体脂肪の減少</li>
-          <li>上腕二頭筋・三頭筋の強化、左手の握力・前腕の左右差改善</li>
-          <li>ランニング能力・心肺機能の向上（連続走行時間を段階的に延長）</li>
-          <li>片手ダンベルハンマーカールを定期的に組み込む</li>
-        </ul>
+      <Section title="目標（メニュー作成の前提）" hint="変更は次のメニュー作成から反映されます。">
+        <GoalsEditor value={goalsOrDefault(settings.goals)} onChange={(g) => update({ goals: g })} />
       </Section>
 
       <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
@@ -168,7 +169,7 @@ export function SettingsView() {
       </Section>
 
 
-      <Section title="データ" hint={`記録 ${workouts.length} 件（この端末の IndexedDB に保存）。将来のクラウド同期に備えて JSON で全件エクスポートできます。`}>
+      <Section title="データ" hint={`記録 ${workouts.length} 件（この端末の IndexedDB に保存）。機種変更時は JSON でエクスポート → 新しい端末でインポートしてください。`}>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="btn-secondary" onClick={exportJSON}>
             JSON エクスポート
@@ -183,13 +184,9 @@ export function SettingsView() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={async () => {
-              await updateSettings({ seedVersion: 0 });
-              const r = await ensureSeeded();
-              toast(r.seeded ? "初期履歴を再投入しました" : "初期履歴はすでに存在します");
-            }}
+            onClick={() => setConfirmSeed(true)}
           >
-            初期履歴を再投入
+            作成者の履歴を取り込む
           </button>
           <button type="button" className="btn-danger col-span-2" onClick={() => setConfirmWipe(true)}>
             すべてのデータを削除
@@ -197,17 +194,31 @@ export function SettingsView() {
         </div>
       </Section>
 
+      <ConfirmDialog
+        open={confirmSeed}
+        title="作成者の過去の記録を取り込みますか？"
+        message="2026/9/20〜10/16 の12回分です。アプリ作成者本人以外は取り込まないでください。"
+        confirmLabel="取り込む"
+        onConfirm={async () => {
+          const n = await importSeedHistory();
+          toast(n ? `${n}件を取り込みました` : "すでに取り込み済みです");
+        }}
+        onClose={() => setConfirmSeed(false)}
+      />
       <ConfirmDialog open={!!importPreview} title={`${importPreview?.count ?? 0}件の記録を取り込みますか？`} message="同じIDの記録は上書きされます。" confirmLabel="取り込む" onConfirm={doImport} onClose={() => setImportPreview(null)} />
       <ConfirmDialog
         open={confirmWipe}
         title="すべてのデータを削除しますか？"
-        message="履歴・設定・器具情報がすべて消えます。先に JSON エクスポートを推奨します。初期履歴は次回起動時に再投入されます。"
+        message="この端末の履歴・設定・器具情報がすべて消え、初回設定からやり直します。先に JSON エクスポートを推奨します。共有中の記録はサーバーからも削除されます。"
         confirmLabel="削除する"
         danger
         onConfirm={async () => {
+          const s = await getSettings();
+          if (s.sharing) await disableSharing().catch(() => {});
           await wipeAll();
           await ensureSeeded();
           toast("削除しました");
+          router.replace("/welcome");
         }}
         onClose={() => setConfirmWipe(false)}
       />

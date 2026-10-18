@@ -1,4 +1,5 @@
-import type { BodyRegion, ExerciseDef, FocusArea, IntakeAnswers, MuscleGroup, Settings, StoreEquipment, Workout, WorkoutExercise } from "@/lib/types";
+import type { BodyRegion, ExerciseDef, FocusArea, Goals, IntakeAnswers, MuscleGroup, Settings, StoreEquipment, Workout, WorkoutExercise } from "@/lib/types";
+import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
 import { EXERCISES, getExercise } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
 import { storeName } from "@/lib/catalog/stores";
@@ -22,7 +23,7 @@ export interface PlanInput {
   intake: IntakeAnswers;
   history: Workout[];
   storeEquipment: StoreEquipment[];
-  settings: Pick<Settings, "excludedExerciseIds">;
+  settings: Pick<Settings, "excludedExerciseIds"> & { goals?: Goals };
   now?: Date;
 }
 
@@ -85,7 +86,7 @@ interface Budget {
   unlimited: boolean;
 }
 
-export function computeBudget(intake: IntakeAnswers, cardioMode: "walk" | "run"): Budget {
+export function computeBudget(intake: IntakeAnswers, cardioMode: "walk" | "run", cardioEmphasis = true): Budget {
   const unlimited = intake.timeLimitMin === null;
   const T = intake.timeLimitMin ?? 120;
   let warmup = T >= 60 ? 6 : T >= 45 ? 5 : 3;
@@ -94,6 +95,8 @@ export function computeBudget(intake: IntakeAnswers, cardioMode: "walk" | "run")
     warmup = 3;
     cardio = cardioMode === "run" ? 8 : 6;
   }
+  // 体脂肪減少・ランニングを目標にしていない場合は有酸素を控えめに
+  if (!cardioEmphasis) cardio = Math.max(5, Math.round(cardio * 0.7));
   if (intake.condition <= 2) cardio = Math.min(cardio, 12);
   const transitions = T >= 60 ? 4 : 2;
   const strength = Math.max(10, T - warmup - cardio - transitions);
@@ -182,10 +185,11 @@ export function generatePlan(input: PlanInput): PlanResult {
   const focusRegions = FOCUS_REGIONS[intake.focus];
   const lastTrained = lastTrainedByMuscle(history);
   const excluded = new Set(settings.excludedExerciseIds);
+  const goals = goalsOrDefault(settings.goals);
 
   // ---- 有酸素の方針と時間配分 ----
   const tm = decideTreadmillMode(intake);
-  const budget = computeBudget(intake, tm.mode);
+  const budget = computeBudget(intake, tm.mode, wantsCardio(goals));
   if (tm.reason) warnings.push(tm.reason);
 
   // ---- 候補種目のスコアリング ----
@@ -237,8 +241,13 @@ export function generatePlan(input: PlanInput): PlanResult {
       const ds = daysSince(lastTrained, def.primary, today);
       if (ds <= 1) score -= 15;
       else if (ds >= 4) score += 8;
-      // ハンマーカールは定期的に（直近2回でやっていなければ加点）
-      if (exId === "db_hammer_curl_single" && !doneInLastN(history, exId, 2)) score += 15;
+      // 目標：特に鍛えたい部位（おまかせ・全身のとき）
+      if (!focusRegions && goals.priorityRegions.length && slot.regions.some((r) => goals.priorityRegions.includes(r))) score += 6;
+      // 目標：定期的に入れたい種目（直近2回でやっていなければ加点）
+      if (goals.favoriteExerciseIds.includes(exId) && !doneInLastN(history, exId, 2)) score += 30;
+      // 目標：握力・前腕 → ハンマーカール、腰痛対策 → 体幹・腰
+      if (goals.objectives.includes("grip") && exId === "db_hammer_curl_single") score += 5;
+      if (goals.objectives.includes("lowback") && (slot.key === "core" || slot.key === "lower_back")) score += 8;
       // 器具未確認の店舗は少し下げる
       if (!av.confirmed) {
         score -= 5;
@@ -287,14 +296,14 @@ export function generatePlan(input: PlanInput): PlanResult {
   chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
 
   // ---- 重量・回数の決定 ----
-  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore));
+  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals));
 
   // ---- 有酸素 ----
   const cardio = [];
   if (budget.warmupMin > 0) cardio.push(bikeWarmup(budget.warmupMin, intake.condition <= 2));
   const legsLight = sore.level === "light" && (sore.regions.has("legs") || sore.regions.has("glutes"));
   if (tm.mode === "run") {
-    const target = nextRunTarget(runHistory(history), legsLight);
+    const target = nextRunTarget(runHistory(history), legsLight, goals.runStartSpeedKmh);
     const plan = buildTreadmillPlan("run", budget.cardioMin, target);
     cardio.push(treadmillEntry("run", plan, target.rationale));
     summary.push(`トレッドミル ${Math.round(planTotalMin(plan))}分（${target.speedKmh}km/h のランニングを含む）`);
@@ -325,7 +334,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   return { workout, summary, warnings };
 }
 
-export function buildPlannedExercise(c: Candidate, history: Workout[], store: IntakeAnswers["storeId"], sore: SorenessInfo): WorkoutExercise {
+export function buildPlannedExercise(c: Candidate, history: Workout[], store: IntakeAnswers["storeId"], sore: SorenessInfo, goals: Goals = goalsOrDefault(undefined)): WorkoutExercise {
   const def = c.def;
   const sets = Math.max(2, def.defaultSets + c.setsDelta);
   const same = exerciseHistory(history, def.id, store);
@@ -371,10 +380,21 @@ export function buildPlannedExercise(c: Candidate, history: Workout[], store: In
     }
   }
   // 片手種目は左右差を考慮（左が弱いため左の重量に合わせる）
-  if (def.unilateral && def.loadType === "weight") notes.push("弱い左から始め、右は左と同じ重量・回数で揃える");
+  if (def.unilateral && def.loadType === "weight") {
+    if (goals.weakSide === "none") notes.push("左右同じ重量・回数で行う");
+    else {
+      const weak = goals.weakSide === "left" ? "左" : "右";
+      const strong = goals.weakSide === "left" ? "右" : "左";
+      notes.push(`弱い${weak}から始め、${strong}は${weak}と同じ重量・回数で揃える`);
+    }
+  }
+  // 筋力重視なら複合種目の目標回数を少なめに
+  const reps = strengthFocused(goals) && def.loadType === "weight" && def.defaultReps && def.priority >= 95 ? 8 : undefined;
+  if (reps) notes.push("筋力向上重視のため8回前後の重量で");
 
   const ex = buildExercise(def, {
     sets,
+    reps,
     weight,
     seconds,
     weightReference,

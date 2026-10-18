@@ -150,7 +150,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
   );
 }
 
-function ReadOnlyView({ w }: { w: Workout }) {
+export function ReadOnlyView({ w }: { w: Workout }) {
   const [showExcluded, setShowExcluded] = useState(false);
   const anyExcluded = w.exercises.some((e) => e.sets.some((s) => s.excluded || !s.completed));
   return (

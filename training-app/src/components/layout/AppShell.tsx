@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ensureSeeded, getActiveWorkout } from "@/lib/db/repo";
+import { ensureSeeded, getActiveWorkout, getSettings } from "@/lib/db/repo";
+import { ShareSync } from "@/components/share/ShareSync";
 import { useSettings } from "@/hooks/useSettings";
 import { ActiveWorkoutProvider } from "@/components/workout/ActiveWorkoutProvider";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -13,11 +14,13 @@ const TABS = [
   { href: "/workout", label: "トレーニング", icon: DumbbellIcon },
   { href: "/history", label: "履歴", icon: ListIcon },
   { href: "/analytics", label: "分析", icon: ChartIcon },
+  { href: "/community", label: "みんな", icon: UsersIcon },
   { href: "/settings", label: "設定", icon: GearIcon },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [ready, setReady] = useState(false);
   useSettings();
   const active = useLiveQuery(() => getActiveWorkout(), [], undefined);
@@ -26,10 +29,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     let cancelled = false;
     ensureSeeded()
       .catch((e) => console.error("seed failed", e))
+      .then(() => getSettings())
+      .then((s) => {
+        // 初回設定が済んでいなければ「はじめに」へ
+        const path = window.location.pathname;
+        if (!cancelled && !s.onboarded && path !== "/welcome" && path !== "/login") router.replace("/welcome");
+      })
       .finally(() => !cancelled && setReady(true));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -38,11 +48,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) => console.warn("SW 登録失敗", e));
   }, []);
 
-  const hideNav = pathname.startsWith("/timer/") || pathname === "/start";
+  const hideNav = pathname.startsWith("/timer/") || pathname === "/start" || pathname === "/welcome" || pathname === "/login";
 
   return (
     <ToastProvider>
       <ActiveWorkoutProvider>
+        <ShareSync />
         <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
           <main className={`flex-1 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] ${hideNav ? "pb-6" : "pb-28"}`}>
             {ready ? children : <div className="py-20 text-center text-muted">読み込み中…</div>}
@@ -58,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <li key={t.href} className="flex-1">
                       <Link
                         href={t.href}
-                        className={`tap relative flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium ${isActive ? "text-accent" : "text-muted"}`}
+                        className={`tap relative flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium ${isActive ? "text-accent" : "text-muted"}`}
                         aria-current={isActive ? "page" : undefined}
                       >
                         <Icon />
@@ -102,6 +113,14 @@ function ChartIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 3v18h18M7 15l4-4 4 3 5-6" />
+    </svg>
+  );
+}
+function UsersIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" />
     </svg>
   );
 }

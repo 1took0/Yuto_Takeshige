@@ -28,9 +28,22 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
   return next;
 }
 
-/** 初回起動時に既存履歴と器具一覧を投入する */
-export async function ensureSeeded(): Promise<{ seeded: boolean }> {
-  const settings = await getSettings();
+// ---------- 変更通知（記録共有の同期に使う） ----------
+type WorkoutChange = { type: "upsert"; workout: Workout } | { type: "delete"; id: string } | { type: "bulk" };
+let changeListener: ((c: WorkoutChange) => void) | null = null;
+export function setWorkoutChangeListener(fn: ((c: WorkoutChange) => void) | null) {
+  changeListener = fn;
+}
+function notify(c: WorkoutChange) {
+  try {
+    changeListener?.(c);
+  } catch (e) {
+    console.warn("change listener failed", e);
+  }
+}
+
+/** 起動時に器具一覧を投入する（履歴は自動では取り込まない） */
+export async function ensureSeeded(): Promise<void> {
   const equipCount = await db().storeEquipment.count();
   if (equipCount === 0) {
     await db().storeEquipment.bulkPut(defaultStoreEquipment());
@@ -40,13 +53,26 @@ export async function ensureSeeded(): Promise<{ seeded: boolean }> {
     const missing = defaultStoreEquipment().filter((r) => !existing.has(r.key));
     if (missing.length) await db().storeEquipment.bulkPut(missing);
   }
-  if ((settings.seedVersion ?? 0) >= SEED_VERSION) return { seeded: false };
+}
+
+/** 既存履歴（アプリ作成者の記録）を取り込む。初回設定で本人が選んだ場合のみ */
+export async function importSeedHistory(): Promise<number> {
   const seeds = buildSeedWorkouts();
   const existingIds = new Set((await db().workouts.toArray()).map((w) => w.id));
   const toAdd = seeds.filter((w) => !existingIds.has(w.id));
   if (toAdd.length) await db().workouts.bulkPut(toAdd);
   await updateSettings({ seedVersion: SEED_VERSION });
-  return { seeded: toAdd.length > 0 };
+  if (toAdd.length) notify({ type: "bulk" });
+  return toAdd.length;
+}
+
+export async function countImportedSeed(): Promise<number> {
+  return (await db().workouts.toArray()).filter((w) => w.source === "import").length;
+}
+
+export async function bulkPutWorkouts(ws: Workout[]): Promise<void> {
+  await db().workouts.bulkPut(ws);
+  notify({ type: "bulk" });
 }
 
 // ---------- Workouts ----------
@@ -55,11 +81,15 @@ export async function getActiveWorkout(): Promise<Workout | undefined> {
 }
 
 export async function saveWorkout(w: Workout): Promise<void> {
-  await db().workouts.put({ ...w, updatedAt: new Date().toISOString() });
+  const next = { ...w, updatedAt: new Date().toISOString() };
+  await db().workouts.put(next);
+  if (next.status === "completed") notify({ type: "upsert", workout: next });
 }
 
 export async function deleteWorkout(id: string): Promise<void> {
+  const cur = await db().workouts.get(id);
   await db().workouts.delete(id);
+  if (cur?.status === "completed") notify({ type: "delete", id });
 }
 
 export async function getWorkout(id: string): Promise<Workout | undefined> {

@@ -254,7 +254,40 @@ export interface Settings {
   /** 自動プランから除外する種目ID */
   excludedExerciseIds: string[];
   seedVersion?: number;
+  /** 初回設定（名前・目標・履歴取り込み）が済んでいるか */
+  onboarded?: boolean;
+  profile?: Profile;
+  goals?: Goals;
+  /** 記録をアプリ利用者全員に共有するか（本人が選択） */
+  sharing?: boolean;
+  /** 共有サーバーへの未送信変更があるか */
+  shareDirty?: boolean;
+  lastSharedAt?: string;
   updatedAt: string;
+}
+
+/** 利用者のプロフィール（端末内で生成。サーバー登録は共有を有効にしたときのみ） */
+export interface Profile {
+  userId: string;
+  displayName: string;
+  /** 共有データの更新・削除に使う秘密トークン（サーバーにはハッシュのみ保存） */
+  shareToken: string;
+  createdAt: string;
+}
+
+export type Objective = "strength" | "hypertrophy" | "fatloss" | "lowback" | "grip" | "running";
+
+/** 人ごとに編集できるトレーニング目標 */
+export interface Goals {
+  /** 特に鍛えたい部位 */
+  priorityRegions: BodyRegion[];
+  objectives: Objective[];
+  /** 筋力が弱い側（片手種目の進め方に使う） */
+  weakSide: "none" | "left" | "right";
+  /** 定期的に入れたい種目 */
+  favoriteExerciseIds: string[];
+  /** ランニング実績がないときの開始速度(km/h) */
+  runStartSpeedKmh: number;
 }
 
 /** 計画の構造化パッチ（AI/ルールエンジンは予定のみ変更し、実績には触れない） */

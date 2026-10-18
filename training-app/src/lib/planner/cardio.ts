@@ -56,10 +56,10 @@ export interface RunTarget {
  * - 連続走行時間を段階的に伸ばす。速度と時間を同時に大きく上げない
  * - 前回の実績（実走時間）が無ければ計画値も達成とみなさず、控えめに
  */
-export function nextRunTarget(history: RunSummary[], legsLightlySore = false): RunTarget {
+export function nextRunTarget(history: RunSummary[], legsLightlySore = false, startSpeedKmh = 10): RunTarget {
   const withRun = history.filter((h) => typeof h.runMin === "number" && h.runMin > 0);
   if (!withRun.length) {
-    return { speedKmh: 10, totalRunMin: 6, intervalMin: 2, rationale: "ランニング実績がないため 10km/h 2分×3本から開始" };
+    return { speedKmh: startSpeedKmh, totalRunMin: 6, intervalMin: 2, rationale: `ランニング実績がないため ${startSpeedKmh}km/h 2分×3本から開始` };
   }
   const last = withRun[0];
   const speed = last.runSpeedKmh ?? DEFAULT_RUN_SPEED;
