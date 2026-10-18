@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/* ダークモードは data-theme 属性で切り替える（システム設定 + 手動上書き） */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --card-2: #eef0f4;
+  --fg: #16181d;
+  --muted: #646b78;
+  --border: #d9dde5;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --accent-soft: #dbe7ff;
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --run: #ea580c;
+  --walk: #0891b2;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --card: #181b22;
+  --card-2: #222631;
+  --fg: #eef0f4;
+  --muted: #98a0ad;
+  --border: #2d323d;
+  --accent: #5b8cff;
+  --accent-fg: #0b1222;
+  --accent-soft: #1d2a4a;
+  --success: #4ade80;
+  --success-soft: #11321f;
+  --warn: #fbbf24;
+  --warn-soft: #3a2a08;
+  --danger: #f87171;
+  --danger-soft: #3d1414;
+  --run: #fb923c;
+  --walk: #22d3ee;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-run: var(--run);
+  --color-walk: var(--walk);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--fg);
+  touch-action: manipulation;
+}
+
+/* 数字入力の見た目をそろえる */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 共通ユーティリティ */
+@utility tap {
+  min-height: 44px;
+  min-width: 44px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+@utility safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+@utility btn {
+  @apply tap inline-flex items-center justify-center gap-1 rounded-xl px-4 py-2.5 text-base font-semibold transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-accent-fg;
+}
+@utility btn-secondary {
+  @apply btn bg-card-2 text-fg border border-border;
+}
+@utility btn-ghost {
+  @apply btn bg-transparent text-fg;
+}
+@utility btn-danger {
+  @apply btn bg-danger-soft text-danger;
+}
+@utility chip {
+  @apply tap inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition;
+  border-color: var(--border);
+  background: var(--card);
+}
+.chip[data-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+@utility input {
+  @apply w-full rounded-xl border border-border bg-card px-3 py-2.5 text-base text-fg outline-none focus:border-accent;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.pulse-soft {
+  animation: pulse-soft 1.2s ease-in-out infinite;
+}
