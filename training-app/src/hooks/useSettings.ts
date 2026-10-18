@@ -2,6 +2,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect } from "react";
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from "@/lib/db/repo";
+import { allStores, setCustomStores } from "@/lib/catalog/stores";
 import type { Settings } from "@/lib/types";
 
 export function applyTheme(theme: Settings["theme"]) {
@@ -18,6 +19,8 @@ export function applyTheme(theme: Settings["theme"]) {
 
 export function useSettings() {
   const settings = useLiveQuery(() => getSettings(), [], DEFAULT_SETTINGS);
+  // 店舗名をどこからでも同期的に引けるよう、追加店舗をレジストリに反映
+  setCustomStores(settings.customStores);
   useEffect(() => {
     applyTheme(settings.theme);
     if (settings.theme !== "system") return;
@@ -28,4 +31,11 @@ export function useSettings() {
   }, [settings.theme]);
   const update = useCallback((patch: Partial<Settings>) => updateSettings(patch), []);
   return { settings, update };
+}
+
+/** 登録済みの全店舗（最初からある店舗＋追加した店舗） */
+export function useStores() {
+  const { settings } = useSettings();
+  setCustomStores(settings.customStores);
+  return allStores();
 }

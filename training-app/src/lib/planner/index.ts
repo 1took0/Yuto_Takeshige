@@ -2,7 +2,7 @@ import type { BodyRegion, ExerciseDef, FocusArea, Goals, IntakeAnswers, MuscleGr
 import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
 import { EXERCISES, getExercise } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
-import { storeName } from "@/lib/catalog/stores";
+import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
@@ -314,7 +314,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   }
 
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
-  summary.unshift(`${storeName(store, true)}店・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）＋バイク${budget.warmupMin}分`);
+  summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）＋バイク${budget.warmupMin}分`);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);
 
   const workout: Workout = {
@@ -322,6 +322,7 @@ export function generatePlan(input: PlanInput): PlanResult {
     trainingDate: today,
     startedAt: now.toISOString(),
     storeId: store,
+    storeLabel: storeName(store),
     intake,
     exercises,
     cardio,
@@ -370,7 +371,7 @@ export function buildPlannedExercise(c: Candidate, history: Workout[], store: In
         }
         if (isOtherStore) {
           w = Math.max(def.increment, w - def.increment);
-          notes.push(`${storeName(ref.workout.storeId, true)}店の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
+          notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
         }
         w = roundToIncrement(w * c.loadFactor, def.increment || 1);
         weight = w;

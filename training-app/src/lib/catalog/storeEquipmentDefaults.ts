@@ -1,4 +1,5 @@
-import type { StoreEquipment, StoreId } from "@/lib/types";
+import type { BuiltinStoreId, StoreEquipment, StoreId } from "@/lib/types";
+import { EQUIPMENT } from "./equipment";
 
 /**
  * 店舗別の器具初期値
@@ -6,7 +7,7 @@ import type { StoreEquipment, StoreId } from "@/lib/types";
  * - 未確認の器具は available=true, confirmed=false として「未確認」表示し、
  *   ユーザーが「この器具はない」と指定すれば次回以降は除外される
  */
-const CONFIRMED: Record<StoreId, string[]> = {
+const CONFIRMED: Record<BuiltinStoreId, string[]> = {
   ichijoji: [
     "leg_press_machine",
     "leg_curl_machine",
@@ -55,14 +56,14 @@ const CONFIRMED: Record<StoreId, string[]> = {
 };
 
 /** 無いことが確認できている器具 */
-const ABSENT: Record<StoreId, string[]> = {
+const ABSENT: Record<BuiltinStoreId, string[]> = {
   ichijoji: [],
   "higashiyama-nijo": ["biceps_curl_machine"],
   "sanjo-ohashi": [],
 };
 
 /** 推測で確定しないが、計画対象として一覧に出す器具（未確認扱い） */
-const UNCONFIRMED_CANDIDATES: Record<StoreId, string[]> = {
+const UNCONFIRMED_CANDIDATES: Record<BuiltinStoreId, string[]> = {
   ichijoji: ["leg_extension_machine", "adductor_machine", "cable", "bench"],
   "higashiyama-nijo": ["cable", "bench"],
   "sanjo-ohashi": [
@@ -87,7 +88,7 @@ const UNCONFIRMED_CANDIDATES: Record<StoreId, string[]> = {
 
 export function defaultStoreEquipment(now = new Date().toISOString()): StoreEquipment[] {
   const rows: StoreEquipment[] = [];
-  (Object.keys(CONFIRMED) as StoreId[]).forEach((storeId) => {
+  (Object.keys(CONFIRMED) as BuiltinStoreId[]).forEach((storeId) => {
     for (const equipmentId of CONFIRMED[storeId]) {
       rows.push({ key: `${storeId}:${equipmentId}`, storeId, equipmentId, available: true, confirmed: true, updatedAt: now });
     }
@@ -107,4 +108,23 @@ export function defaultStoreEquipment(now = new Date().toISOString()): StoreEqui
     }
   });
   return rows;
+}
+
+/**
+ * 追加した店舗の器具の初期値
+ * - コピー元が無ければ全器具を「未確認」（推測で確定しない）
+ * - コピー元があれば、その店舗の「ある／ない」を引き継ぎ、すべて未確認扱いにする
+ */
+export function equipmentForNewStore(storeId: StoreId, copyFrom?: StoreEquipment[], now = new Date().toISOString()): StoreEquipment[] {
+  return EQUIPMENT.map((eq) => {
+    const src = copyFrom?.find((r) => r.equipmentId === eq.id);
+    return {
+      key: `${storeId}:${eq.id}`,
+      storeId,
+      equipmentId: eq.id,
+      available: src ? src.available : true,
+      confirmed: false,
+      updatedAt: now,
+    };
+  });
 }

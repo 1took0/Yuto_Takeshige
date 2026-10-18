@@ -2,6 +2,7 @@
 import type { Profile, Workout } from "@/lib/types";
 import { getSettings, listCompletedWorkouts, updateSettings } from "@/lib/db/repo";
 import type { SharedWorkout } from "./sanitize";
+import { workoutStoreName } from "@/lib/catalog/stores";
 import type { FeedItem, PublicUser } from "./service";
 
 /** 共有前に体調・痛み・メモ（intake）と UI 状態を落とす */
@@ -9,7 +10,8 @@ export function toShareable(w: Workout): Omit<Workout, "intake" | "ui"> {
   const { intake: _intake, ui: _ui, ...rest } = w;
   void _intake;
   void _ui;
-  return rest;
+  // 他の人の端末に無い店舗でも名前が表示されるよう、店舗名を添える
+  return { ...rest, storeLabel: workoutStoreName(w) };
 }
 
 /** 端末ごとのプロフィールを作る（userId とトークンはランダム生成） */

@@ -5,7 +5,8 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Sca
 import { listCompletedWorkouts } from "@/lib/db/repo";
 import { exercisesInHistory, lateralDifference, regionFrequency, restDayCalendar, runTrend, storeStats, volumeTrend, weeklyCounts, weightTrend } from "@/lib/analytics";
 import { formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
-import { STORES, storeName } from "@/lib/catalog/stores";
+import { storeName, workoutStoreName } from "@/lib/catalog/stores";
+import { useStores } from "@/hooks/useSettings";
 import { REGION_LABEL } from "@/lib/catalog/muscles";
 import type { StoreId } from "@/lib/types";
 import { AXIS, GRID, TOOLTIP_STYLE, storeColor } from "./chartTheme";
@@ -28,6 +29,7 @@ const shortDate = (d: string) => formatJaDate(d, true).replace(/\(.\)/, "");
 export function AnalyticsView() {
   const workouts = useLiveQuery(() => listCompletedWorkouts(), [], []);
   const dark = useDark();
+  const registeredStores = useStores();
   const today = trainingDateOf();
   const exercises = useMemo(() => exercisesInHistory(workouts), [workouts]);
   const [exerciseId, setExerciseId] = useState<string>("");
@@ -56,7 +58,17 @@ export function AnalyticsView() {
       return row;
     });
   }, [trend]);
-  const storesInTrend = useMemo(() => STORES.filter((s) => trend.some((p) => p.storeId === s.id)), [trend]);
+  // 記録に出てくる店舗（削除した店舗も記録時の名前で表示）
+  const storeLabelOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of workouts) if (!m.has(w.storeId)) m.set(w.storeId, workoutStoreName(w, true));
+    return m;
+  }, [workouts]);
+  const storesInTrend = useMemo(() => [...new Set(trend.map((p) => p.storeId))].map((id) => ({ id, shortName: storeLabelOf.get(id) ?? storeName(id, true) })), [trend, storeLabelOf]);
+  const legendStores = useMemo(() => {
+    const ids = new Set(workouts.map((w) => w.storeId));
+    return [...registeredStores.filter((s) => ids.has(s.id)).map((s) => ({ id: s.id, shortName: s.shortName })), ...[...ids].filter((id) => !registeredStores.some((s) => s.id === id)).map((id) => ({ id, shortName: storeLabelOf.get(id) ?? id }))];
+  }, [workouts, registeredStores, storeLabelOf]);
   const hasE1rm = trend.some((p) => p.e1rm !== undefined);
   const isUnilateral = trend.some((p) => p.left !== undefined || p.right !== undefined);
 
@@ -75,13 +87,13 @@ export function AnalyticsView() {
       <Card title="直近28日" sub={`トレーニング ${calendar.filter((d) => d.trained).length}日 ・ 休息 ${calendar.filter((d) => !d.trained).length}日`}>
         <div className="grid grid-cols-7 gap-1">
           {calendar.map((d) => (
-            <div key={d.date} className="flex flex-col items-center gap-0.5" title={`${d.date}${d.storeId ? ` ${storeName(d.storeId, true)}` : " 休息"}`}>
+            <div key={d.date} className="flex flex-col items-center gap-0.5" title={`${d.date}${d.storeId ? ` ${storeLabelOf.get(d.storeId) ?? storeName(d.storeId, true)}` : " 休息"}`}>
               <div className={`h-7 w-full rounded-md ${d.trained ? "" : "bg-card-2"} ${d.date === today ? "ring-2 ring-accent" : ""}`} style={d.trained && d.storeId ? { background: storeColor(d.storeId, dark) } : undefined} aria-label={`${d.date} ${d.trained ? "トレーニング" : "休息"}`} />
               <span className="text-[9px] text-muted">{d.date.slice(8)}</span>
             </div>
           ))}
         </div>
-        <Legend items={STORES.map((s) => ({ label: s.shortName, color: storeColor(s.id, dark) }))} />
+        <Legend items={legendStores.map((s) => ({ label: s.shortName, color: storeColor(s.id, dark) }))} />
       </Card>
 
       {/* 種目ごとの重量推移 */}
@@ -110,7 +122,7 @@ export function AnalyticsView() {
               {trend.map((p) => (
                 <tr key={`${p.date}${p.storeId}`} className="border-t border-border tabular">
                   <td>{p.date}</td>
-                  <td>{storeName(p.storeId, true)}</td>
+                  <td>{storeLabelOf.get(p.storeId) ?? storeName(p.storeId, true)}</td>
                   <td>{p.maxWeight}</td>
                   <td>{p.workingWeight}</td>
                   <td>{p.sets}</td>
@@ -127,7 +139,7 @@ export function AnalyticsView() {
                 <CartesianGrid {...GRID} vertical={false} />
                 <XAxis dataKey="date" tickFormatter={shortDate} tick={AXIS} axisLine={false} tickLine={false} />
                 <YAxis tick={AXIS} axisLine={false} tickLine={false} unit="" domain={["auto", "auto"]} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={(l) => String(l)} formatter={(v, name) => [`${v} kg`, storeName(name as StoreId, true)]} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} labelFormatter={(l) => String(l)} formatter={(v, name) => [`${v} kg`, storeLabelOf.get(String(name)) ?? storeName(String(name), true)]} />
                 {storesInTrend.map((s) => (
                   <Line key={s.id} type="monotone" dataKey={s.id} name={s.id} stroke={storeColor(s.id, dark)} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: "var(--card)" }} connectNulls isAnimationActive={false} />
                 ))}
@@ -142,7 +154,7 @@ export function AnalyticsView() {
       {/* 総セット数 */}
       <Card title="総セット数の変化" sub="1回のトレーニングあたりの完了セット数">
         {showTable ? (
-          <SimpleTable rows={volume.map((v) => [v.date, storeName(v.storeId, true), String(v.totalSets), String(v.exercises)])} head={["日付", "店舗", "セット", "種目"]} />
+          <SimpleTable rows={volume.map((v) => [v.date, storeLabelOf.get(v.storeId) ?? storeName(v.storeId, true), String(v.totalSets), String(v.exercises)])} head={["日付", "店舗", "セット", "種目"]} />
         ) : (
           <div className="h-44">
             <ResponsiveContainer>
@@ -198,7 +210,7 @@ export function AnalyticsView() {
           {stores.map((s) => (
             <li key={s.storeId} className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-sm" style={{ background: storeColor(s.storeId, dark) }} />
-              <span className="flex-1">{storeName(s.storeId)}</span>
+              <span className="flex-1">{storeName(s.storeId) !== s.storeId ? storeName(s.storeId) : (storeLabelOf.get(s.storeId) ?? "その他の店舗")}</span>
               <span className="tabular">{s.sessions}回</span>
               <span className="w-24 text-right text-xs text-muted">最終 {s.lastDate ? formatJaDate(s.lastDate) : "—"}</span>
             </li>

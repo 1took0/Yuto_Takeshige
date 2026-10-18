@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { listCompletedWorkouts } from "@/lib/db/repo";
-import { storeName, STORES } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
+import { useStores } from "@/hooks/useSettings";
 import { formatJaDate, monthOf, trainingDateOf, weekStartOf, shiftYMD } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import type { StoreId } from "@/lib/types";
@@ -11,6 +12,8 @@ import type { StoreId } from "@/lib/types";
 export function HistoryList() {
   const workouts = useLiveQuery(() => listCompletedWorkouts(), [], []);
   const [store, setStore] = useState<StoreId | "all">("all");
+  const allStoreList = useStores();
+  const stores = allStoreList.filter((s) => workouts.some((w) => w.storeId === s.id));
   const [view, setView] = useState<"list" | "week" | "month">("list");
   const today = trainingDateOf();
   const filtered = useMemo(() => workouts.filter((w) => store === "all" || w.storeId === store), [workouts, store]);
@@ -42,7 +45,7 @@ export function HistoryList() {
           <button type="button" className="chip px-3 py-1 text-xs" data-selected={store === "all"} onClick={() => setStore("all")}>
             全店舗
           </button>
-          {STORES.map((s) => (
+          {stores.map((s) => (
             <button key={s.id} type="button" className="chip px-3 py-1 text-xs" data-selected={store === s.id} onClick={() => setStore(s.id)}>
               {s.shortName}
             </button>
@@ -68,7 +71,7 @@ export function HistoryList() {
                     {formatJaDate(w.trainingDate)} <span className="text-sm font-normal text-muted">{w.trainingDate.slice(0, 4)}</span>
                   </div>
                   <div className="text-xs text-muted">
-                    {storeName(w.storeId, true)}店{w.source === "import" && " ・ 取り込み"}
+                    {workoutStoreName(w, true)}{w.source === "import" && " ・ 取り込み"}
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-muted">

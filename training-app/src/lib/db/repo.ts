@@ -1,6 +1,7 @@
 import { db } from "./index";
-import type { CardioPreference, Settings, StoreEquipment, StoreId, Workout } from "@/lib/types";
-import { defaultStoreEquipment } from "@/lib/catalog/storeEquipmentDefaults";
+import type { CardioPreference, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
+import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
+import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
 import { SEED_VERSION, buildSeedWorkouts } from "@/lib/seed/history";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -18,7 +19,9 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export async function getSettings(): Promise<Settings> {
   const s = await db().settings.get("settings");
-  return s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
+  const merged = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
+  setCustomStores(merged.customStores);
+  return merged;
 }
 
 export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
@@ -124,6 +127,44 @@ export async function setStoreEquipment(storeId: StoreId, equipmentId: string, p
     ...patch,
     updatedAt: new Date().toISOString(),
   });
+}
+
+// ---------- Stores ----------
+/** 店舗を追加する。copyFromStoreId を指定するとその店舗の器具の有無を引き継ぐ（すべて未確認扱い） */
+export async function addStore(name: string, copyFromStoreId?: StoreId): Promise<StoreDef> {
+  const n = name.trim().slice(0, 30);
+  if (!n) throw new Error("店舗名を入力してください");
+  const s = await getSettings();
+  const list = s.customStores ?? [];
+  if ([...list].some((x) => x.name === n)) throw new Error("同じ名前の店舗があります");
+  const store: StoreDef = { id: newStoreId(), name: n, shortName: shortNameOf(n), custom: true };
+  const copy = copyFromStoreId ? await listStoreEquipment(copyFromStoreId) : undefined;
+  await db().storeEquipment.bulkPut(equipmentForNewStore(store.id, copy));
+  await updateSettings({ customStores: [...list, store] });
+  return store;
+}
+
+export async function renameStore(id: StoreId, name: string): Promise<void> {
+  const n = name.trim().slice(0, 30);
+  if (!n || isBuiltinStore(id)) return;
+  const s = await getSettings();
+  await updateSettings({ customStores: (s.customStores ?? []).map((x) => (x.id === id ? { ...x, name: n, shortName: shortNameOf(n) } : x)) });
+}
+
+/** 追加した店舗を削除する。記録は残し、店舗名を記録側に保存しておく */
+export async function deleteStore(id: StoreId): Promise<void> {
+  if (isBuiltinStore(id)) return;
+  const s = await getSettings();
+  const store = (s.customStores ?? []).find((x) => x.id === id);
+  if (!store) return;
+  const ws = (await db().workouts.where("storeId").equals(id).toArray()).filter((w) => !w.storeLabel);
+  if (ws.length) await db().workouts.bulkPut(ws.map((w) => ({ ...w, storeLabel: store.name })));
+  await db().storeEquipment.where("storeId").equals(id).delete();
+  await updateSettings({ customStores: (s.customStores ?? []).filter((x) => x.id !== id), lastStoreId: s.lastStoreId === id ? "ichijoji" : s.lastStoreId });
+}
+
+export async function countWorkoutsAtStore(id: StoreId): Promise<number> {
+  return db().workouts.where("storeId").equals(id).count();
 }
 
 // ---------- KV ----------

@@ -1,14 +1,24 @@
-import type { StoreId } from "@/lib/types";
+import type { BuiltinStoreId, StoreId } from "@/lib/types";
+import { allStores, isBuiltinStore } from "@/lib/catalog/stores";
 
 /**
  * グラフの配色（dataviz 参照パレット、検証済み）
  * 店舗ごとに固定の色を割り当て、並び順やフィルタで色が変わらないようにする
  */
-export const STORE_SERIES_LIGHT: Record<StoreId, string> = { ichijoji: "#2a78d6", "higashiyama-nijo": "#eb6834", "sanjo-ohashi": "#1baf7a" };
-export const STORE_SERIES_DARK: Record<StoreId, string> = { ichijoji: "#3987e5", "higashiyama-nijo": "#d95926", "sanjo-ohashi": "#199e70" };
+export const STORE_SERIES_LIGHT: Record<BuiltinStoreId, string> = { ichijoji: "#2a78d6", "higashiyama-nijo": "#eb6834", "sanjo-ohashi": "#1baf7a" };
+export const STORE_SERIES_DARK: Record<BuiltinStoreId, string> = { ichijoji: "#3987e5", "higashiyama-nijo": "#d95926", "sanjo-ohashi": "#199e70" };
+/** 追加した店舗用（参照パレットの4〜8番目を追加順に割り当て。それ以降はグレー） */
+const CUSTOM_LIGHT = ["#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+const CUSTOM_DARK = ["#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
+const OTHER = { light: "#8a8f99", dark: "#6b7280" };
 
 export function storeColor(storeId: StoreId, dark: boolean): string {
-  return (dark ? STORE_SERIES_DARK : STORE_SERIES_LIGHT)[storeId];
+  if (isBuiltinStore(storeId)) return (dark ? STORE_SERIES_DARK : STORE_SERIES_LIGHT)[storeId];
+  const idx = allStores()
+    .filter((s) => s.custom)
+    .findIndex((s) => s.id === storeId);
+  const pal = dark ? CUSTOM_DARK : CUSTOM_LIGHT;
+  return idx >= 0 && idx < pal.length ? pal[idx] : dark ? OTHER.dark : OTHER.light;
 }
 
 export const SERIES = {

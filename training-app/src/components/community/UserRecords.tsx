@@ -5,7 +5,7 @@ import { shareApi } from "@/lib/share/client";
 import type { PublicUser } from "@/lib/share/service";
 import type { SharedWorkout } from "@/lib/share/sanitize";
 import type { Workout } from "@/lib/types";
-import { storeName } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import { ReadOnlyView } from "@/components/history/WorkoutDetail";
@@ -49,7 +49,7 @@ export function UserRecords({ userId }: { userId: string }) {
                 {formatJaDate(w.trainingDate)} <span className="text-xs font-normal text-muted">{w.trainingDate.slice(0, 4)}</span>
               </span>
               <span className="text-xs text-muted">
-                {storeName(w.storeId, true)} ・ {w.exercises.length}種目 {sets}セット {isOpen ? "▾" : "▸"}
+                {workoutStoreName(w, true)} ・ {w.exercises.length}種目 {sets}セット {isOpen ? "▾" : "▸"}
               </span>
             </button>
             {isOpen && (

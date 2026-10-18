@@ -4,7 +4,7 @@ import type { Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { getExercise } from "@/lib/catalog/exercises";
 import { equipmentName } from "@/lib/catalog/equipment";
 import { musclesLabel } from "@/lib/catalog/muscles";
-import { storeName } from "@/lib/catalog/stores";
+import { findStore } from "@/lib/catalog/stores";
 import { formatJaDate } from "@/lib/date/trainingDay";
 import { addSet, isExerciseDone, moveExercise, removeExercise, removeSet, setExcluded, setExerciseStatus, toggleSetCompleted, updateExercise, updateSet } from "@/lib/workout/edit";
 import { SetRow } from "./SetRow";
@@ -90,7 +90,7 @@ export function ExerciseCard({ exercise: e, index, total, mutate, collapsed, foc
         <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
           {e.previous && (
             <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted">
-              前回 {formatJaDate(e.previous.trainingDate)}・{storeName(e.previous.storeId, true)}：{" "}
+              前回 {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? "別の店舗"}：{" "}
               <span className="text-fg tabular">
                 {e.previous.sets
                   .map((s) => (s.seconds !== undefined && s.weight === undefined ? `${s.seconds}秒` : s.left?.weight !== undefined ? `${s.left.weight}` : s.weight !== undefined ? `${s.weight}` : "?"))

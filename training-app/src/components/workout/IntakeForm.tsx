@@ -5,7 +5,8 @@ import type { BodyRegion, CardioPreference, FocusArea, IntakeAnswers, StoreId } 
 import { STORES } from "@/lib/catalog/stores";
 import { FOCUS_LABEL, REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { ChipGroup, MultiChipGroup } from "@/components/ui/Chips";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, useStores } from "@/hooks/useSettings";
+import Link from "next/link";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 import { generatePlan } from "@/lib/planner";
 import { getSettings, listCompletedWorkouts, listStoreEquipment, rememberIntakeDefaults } from "@/lib/db/repo";
@@ -37,6 +38,7 @@ interface FormState {
 export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
   const router = useRouter();
   const { settings } = useSettings();
+  const stores = useStores();
   const { workout: active, setWorkout } = useActiveWorkout();
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
     getSettings().then((s) => {
       if (cancelled) return;
       setForm({
-        storeId: s.lastStoreId ?? "ichijoji",
+        storeId: s.lastStoreId && (s.customStores ?? []).concat(STORES).some((x) => x.id === s.lastStoreId) ? s.lastStoreId : "ichijoji",
         timeLimit: s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
         condition: 4,
         soreness: false,
@@ -118,7 +120,8 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
       </header>
 
       <Field label="店舗">
-        <ChipGroup label="店舗" options={STORES.map((s) => ({ value: s.id, label: s.shortName }))} value={storeId} onChange={setStoreId} columns={3} />
+        <ChipGroup label="店舗" options={stores.map((s) => ({ value: s.id, label: s.shortName }))} value={storeId} onChange={setStoreId} columns={3} />
+        <Link href="/settings#stores" className="mt-2 inline-block text-xs text-accent">＋ 店舗を追加・編集</Link>
       </Field>
       <Field label="トレーニング時間">
         <ChipGroup label="時間" options={TIME_OPTIONS} value={timeLimit} onChange={setTimeLimit} columns={3} />

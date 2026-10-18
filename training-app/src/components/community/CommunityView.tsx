@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { shareApi } from "@/lib/share/client";
 import type { FeedItem, PublicUser } from "@/lib/share/service";
-import { storeName } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import type { Workout } from "@/lib/types";
@@ -113,7 +113,7 @@ function FeedCard({ item, isMe }: { item: FeedItem; isMe: boolean }) {
           {isMe && <span className="ml-1 text-xs font-normal text-muted">（あなた）</span>}
         </span>
         <span className="shrink-0 text-xs text-muted">
-          {formatJaDate(w.trainingDate)} ・ {storeName(w.storeId, true)}
+          {formatJaDate(w.trainingDate)} ・ {workoutStoreName(w, true)}
         </span>
       </div>
       <div className="mt-1 text-xs text-muted">

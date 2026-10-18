@@ -8,7 +8,8 @@ import { listAllWorkouts, listStoreEquipment, setStoreEquipment, wipeAll, ensure
 import { GoalsEditor } from "./GoalsEditor";
 import { ShareSettings } from "./ShareSettings";
 import { goalsOrDefault } from "@/lib/goals";
-import { STORES } from "@/lib/catalog/stores";
+import { StoreManager } from "./StoreManager";
+import { useStores } from "@/hooks/useSettings";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { EXERCISES } from "@/lib/catalog/exercises";
 import type { StoreId } from "@/lib/types";
@@ -21,7 +22,9 @@ import { musclesLabel } from "@/lib/catalog/muscles";
 export function SettingsView() {
   const { settings, update } = useSettings();
   const router = useRouter();
-  const [store, setStore] = useState<StoreId>("ichijoji");
+  const [storeSel, setStore] = useState<StoreId>("ichijoji");
+  const stores = useStores();
+  const store = stores.some((s) => s.id === storeSel) ? storeSel : "ichijoji";
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
   const [confirmWipe, setConfirmWipe] = useState(false);
@@ -89,10 +92,12 @@ export function SettingsView() {
         </div>
       </Section>
 
+      <StoreManager onAdded={(id) => setStore(id)} />
+
       <Section title="店舗の器具" hint="「ない」にすると次回以降のメニューから自動的に除外されます。未確認は推測なので、実際に確認したら更新してください。">
-        <div className="mb-2 flex gap-1">
-          {STORES.map((s) => (
-            <button key={s.id} type="button" className="chip flex-1" data-selected={store === s.id} onClick={() => setStore(s.id)}>
+        <div className="mb-2 flex flex-wrap gap-1">
+          {stores.map((s) => (
+            <button key={s.id} type="button" className="chip flex-1 whitespace-nowrap" data-selected={store === s.id} onClick={() => setStore(s.id)}>
               {s.shortName}
             </button>
           ))}

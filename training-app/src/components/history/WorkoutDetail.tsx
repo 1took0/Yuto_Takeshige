@@ -5,7 +5,8 @@ import { useCallback, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { deleteWorkout, getWorkout, saveWorkout } from "@/lib/db/repo";
 import type { Workout } from "@/lib/types";
-import { storeName, STORES } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
+import { useStores } from "@/hooks/useSettings";
 import { formatJaDate } from "@/lib/date/trainingDay";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { CardioCard } from "@/components/workout/CardioCard";
@@ -17,6 +18,7 @@ import { useToast } from "@/components/ui/Toast";
 
 export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boolean }) {
   const fromDb = useLiveQuery(() => getWorkout(id), [id]);
+  const stores = useStores();
   const [draft, setDraft] = useState<Workout | null>(null);
   const [editing, setEditing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -74,7 +76,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
             {formatJaDate(w.trainingDate)} <span className="text-sm font-normal text-muted">{w.trainingDate.slice(0, 4)}</span>
           </h1>
           <div className="text-xs text-muted">
-            {storeName(w.storeId)} ・ {w.exercises.length}種目 {totalSets}セット{w.source === "import" && " ・ 取り込みデータ"}
+            {workoutStoreName(w)} ・ {w.exercises.length}種目 {totalSets}セット{w.source === "import" && " ・ 取り込みデータ"}
           </div>
         </div>
         <button type="button" className={`btn-secondary px-3 ${editing ? "border-accent text-accent" : ""}`} onClick={() => (editing ? stopEditing() : startEditing())} data-testid="edit-toggle">
@@ -93,7 +95,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
           <label className="flex items-center gap-2">
             <span className="w-20 text-muted">店舗</span>
             <select className="input" value={w.storeId} onChange={(e) => mutate((x) => ({ ...x, storeId: e.target.value as Workout["storeId"] }))} aria-label="店舗">
-              {STORES.map((s) => (
+              {[...stores, ...(stores.some((s) => s.id === w.storeId) ? [] : [{ id: w.storeId, name: workoutStoreName(w), shortName: "" }])].map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>

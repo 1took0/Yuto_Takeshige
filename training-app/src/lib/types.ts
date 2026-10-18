@@ -4,7 +4,10 @@
  * - 反復回数が未報告の場合は actualReps を undefined のまま保持し、推測で補完しない
  */
 
-export type StoreId = "ichijoji" | "higashiyama-nijo" | "sanjo-ohashi";
+/** 最初から登録されている店舗 */
+export type BuiltinStoreId = "ichijoji" | "higashiyama-nijo" | "sanjo-ohashi";
+/** 店舗ID（追加した店舗は "custom-xxxx"） */
+export type StoreId = string;
 
 export type MuscleGroup =
   | "chest"
@@ -86,6 +89,8 @@ export interface StoreDef {
   id: StoreId;
   name: string;
   shortName: string;
+  /** 利用者が追加した店舗 */
+  custom?: boolean;
 }
 
 /** 店舗ごとの器具の有無 */
@@ -230,6 +235,8 @@ export interface Workout {
   startedAt: string; // ISO
   endedAt?: string;
   storeId: StoreId;
+  /** 記録時点の店舗名（店舗の削除後や、他の人の記録の表示に使う） */
+  storeLabel?: string;
   intake?: IntakeAnswers;
   exercises: WorkoutExercise[];
   cardio: CardioEntry[];
@@ -253,6 +260,8 @@ export interface Settings {
   keepAwake: boolean;
   /** 自動プランから除外する種目ID */
   excludedExerciseIds: string[];
+  /** 利用者が追加した店舗 */
+  customStores?: StoreDef[];
   seedVersion?: number;
   /** 初回設定（名前・目標・履歴取り込み）が済んでいるか */
   onboarded?: boolean;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useActiveWorkout } from "@/components/workout/ActiveWorkoutProvider";
 import { listCompletedWorkouts } from "@/lib/db/repo";
-import { storeName } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { progressOf } from "@/lib/workout/edit";
 import { CoachInput } from "@/components/coach/CoachInput";
@@ -28,7 +28,7 @@ export function HomeView() {
         <Link href="/workout" className="card block border-success p-4" data-testid="resume">
           <div className="text-xs font-semibold text-success">進行中のトレーニング</div>
           <div className="mt-1 text-lg font-bold">
-            {storeName(active.storeId, true)}店 ・ {progressOf(active).doneSets}/{progressOf(active).plannedSets} セット完了
+            {workoutStoreName(active, true)} ・ {progressOf(active).doneSets}/{progressOf(active).plannedSets} セット完了
           </div>
           <div className="mt-2 text-sm text-accent">タップして再開 →</div>
         </Link>
@@ -53,7 +53,7 @@ export function HomeView() {
       {last && (
         <section className="card p-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">前回：{formatJaDate(last.trainingDate)}・{storeName(last.storeId, true)}店</h2>
+            <h2 className="font-semibold">前回：{formatJaDate(last.trainingDate)}・{workoutStoreName(last, true)}</h2>
             <Link href={`/history/${last.id}`} className="text-sm text-accent">
               詳細 →
             </Link>

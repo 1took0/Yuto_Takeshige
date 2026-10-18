@@ -191,3 +191,33 @@ test("分析画面とダークモードが表示される", async ({ page }) => 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
+
+test("店舗を追加してトレーニングし、削除後も記録に店舗名が残る", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByTestId("store-name").fill("LifeFit 北白川店");
+  await page.getByTestId("store-add").click();
+  await expect(page.getByTestId("store-list")).toContainText("LifeFit 北白川店");
+  // 器具の設定タブに出て、選択されている
+  await expect(page.locator(".chip[data-selected=true]", { hasText: "北白川" })).toBeVisible();
+
+  await page.goto("/start");
+  await page.getByRole("radio", { name: "北白川" }).click();
+  await page.getByRole("radio", { name: "30分" }).click();
+  await page.getByTestId("generate").click();
+  await expect(page.getByTestId("progress")).toBeVisible();
+  await expect(page.getByText(/北白川/).first()).toBeVisible();
+  await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();
+  await page.getByTestId("finish").click();
+  await page.getByTestId("finish-confirm").click();
+  await expect(page.getByText("LifeFit 北白川店").first()).toBeVisible();
+
+  // 店舗を削除しても履歴には名前が残る
+  await page.goto("/settings");
+  const row = page.getByTestId("store-list").locator("li", { hasText: "LifeFit 北白川店" });
+  await row.getByRole("button", { name: "削除" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("記録が 1 件");
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
+  await expect(page.getByTestId("store-list")).not.toContainText("北白川");
+  await page.goto("/history");
+  await expect(page.getByTestId("history-item").first()).toContainText("北白川");
+});

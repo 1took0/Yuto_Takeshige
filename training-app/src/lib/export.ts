@@ -1,5 +1,5 @@
 import type { StoreEquipment, Workout } from "@/lib/types";
-import { storeName } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
 
 export interface ExportBundle {
   app: "training-coach";
@@ -31,7 +31,7 @@ export function setsToCSV(workouts: Workout[]): string {
       e.sets.forEach((s, i) => {
         if (!s.completed || s.excluded) return;
         rows.push(
-          [w.trainingDate, storeName(w.storeId, true), w.id, e.exerciseId, e.name, i + 1, s.weight, s.reps, s.actualReps, s.seconds, s.actualSeconds, s.left?.weight, s.left?.actualReps, s.right?.weight, s.right?.actualReps, s.feel, s.note ?? e.note]
+          [w.trainingDate, workoutStoreName(w, true), w.id, e.exerciseId, e.name, i + 1, s.weight, s.reps, s.actualReps, s.seconds, s.actualSeconds, s.left?.weight, s.left?.actualReps, s.right?.weight, s.right?.actualReps, s.feel, s.note ?? e.note]
             .map(csvCell)
             .join(","),
         );
@@ -52,7 +52,7 @@ export function cardioToCSV(workouts: Workout[]): string {
       const planTotal = c.plan.reduce((a, s) => a + s.durationSec, 0) / 60;
       const planRun = c.plan.filter((s) => s.kind === "run").reduce((a, s) => a + s.durationSec, 0) / 60;
       const planSpeed = c.plan.find((s) => s.kind === "run")?.speedKmh;
-      rows.push([w.trainingDate, storeName(w.storeId, true), c.machine, c.role, c.completed, planTotal || "", planRun || "", planSpeed, c.actual?.totalMin, c.actual?.runMin, c.actual?.runSpeedKmh, c.actual?.longestRunMin, c.actual?.distanceKm, c.actual?.inclinePct, c.actual?.level, c.actual?.note].map(csvCell).join(","));
+      rows.push([w.trainingDate, workoutStoreName(w, true), c.machine, c.role, c.completed, planTotal || "", planRun || "", planSpeed, c.actual?.totalMin, c.actual?.runMin, c.actual?.runSpeedKmh, c.actual?.longestRunMin, c.actual?.distanceKm, c.actual?.inclinePct, c.actual?.level, c.actual?.note].map(csvCell).join(","));
     }
   }
   return "﻿" + rows.join("\n");

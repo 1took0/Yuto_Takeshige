@@ -11,7 +11,7 @@ import { RestTimerBar } from "@/components/timer/RestTimerBar";
 import { Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
 import { addExercise, finalizeWorkout, progressOf } from "@/lib/workout/edit";
-import { storeName } from "@/lib/catalog/stores";
+import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { clearTimer } from "@/hooks/useTimer";
 import { useToast } from "@/components/ui/Toast";
@@ -93,7 +93,7 @@ export function ActiveWorkoutView() {
       <div className="sticky top-0 z-30 -mx-4 bg-bg/95 px-4 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)] backdrop-blur">
         <div className="mb-1 flex items-center justify-between text-xs text-muted">
           <span>
-            {formatJaDate(w.trainingDate)} {storeName(w.storeId, true)}店 ・ {formatTimeHM(w.startedAt)}〜
+            {formatJaDate(w.trainingDate)} {workoutStoreName(w, true)} ・ {formatTimeHM(w.startedAt)}〜
           </span>
           <span aria-live="polite">{saving ? "保存中…" : savedAt ? `保存済み ${formatTimeHM(savedAt)}` : "自動保存"}</span>
         </div>
