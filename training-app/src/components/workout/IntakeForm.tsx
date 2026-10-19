@@ -1,25 +1,19 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { BodyRegion, CardioPreference, FocusArea, IntakeAnswers, StoreId } from "@/lib/types";
+import type { BodyRegion, CardioChoice, FocusArea, IntakeAnswers, StoreId } from "@/lib/types";
 import { STORES } from "@/lib/catalog/stores";
 import { FOCUS_LABEL, REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { ChipGroup, MultiChipGroup } from "@/components/ui/Chips";
-import { useSettings, useStores } from "@/hooks/useSettings";
+import { useStores } from "@/hooks/useSettings";
 import Link from "next/link";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 import { generatePlan } from "@/lib/planner";
-import { getSettings, listCompletedWorkouts, listStoreEquipment, rememberIntakeDefaults } from "@/lib/db/repo";
+import { getSettings, listCompletedWorkouts, listStoreEquipment, rememberIntakeDefaults, saveWish } from "@/lib/db/repo";
 import { ConfirmDialog } from "@/components/ui/Sheet";
-
-const TIME_OPTIONS: { value: number | null; label: string }[] = [
-  { value: 30, label: "30分" },
-  { value: 45, label: "45分" },
-  { value: 60, label: "60分" },
-  { value: 90, label: "90分" },
-  { value: 120, label: "120分" },
-  { value: null, label: "制限なし" },
-];
+import { TIME_OPTIONS } from "@/lib/preferences";
+import { isStandingWish, parseWish } from "@/lib/preferences/parse";
+import { useToast } from "@/components/ui/Toast";
 
 interface FormState {
   storeId: StoreId;
@@ -31,13 +25,13 @@ interface FormState {
   pain: boolean;
   painDesc: string;
   focus: FocusArea;
-  cardio: CardioPreference;
+  cardio: CardioChoice;
   memo: string;
 }
 
 export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
   const router = useRouter();
-  const { settings } = useSettings();
+  const toast = useToast();
   const stores = useStores();
   const { workout: active, setWorkout } = useActiveWorkout();
   const [form, setForm] = useState<FormState | null>(null);
@@ -59,7 +53,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         pain: false,
         painDesc: "",
         focus: "auto",
-        cardio: s.lastCardio ?? "run",
+        cardio: s.lastCardio ?? s.preferences?.cardio ?? "run",
         memo: presetMemo ?? "",
       });
     });
@@ -100,8 +94,13 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
     setBusy(true);
     try {
       const intake = buildIntake();
-      const [history, equipment] = await Promise.all([listCompletedWorkouts(), listStoreEquipment()]);
-      const { workout } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: settings?.excludedExerciseIds ?? [], goals: settings?.goals } });
+      // メモに「次から〇〇」のような今後の希望があれば保存し、今日のメニューから反映する
+      if (memo && isStandingWish(memo)) {
+        const changes = await saveWish(memo, parseWish(memo));
+        if (changes.length) toast(`今後のメニューに反映します：${changes.join("、")}`);
+      }
+      const [history, equipment, s] = await Promise.all([listCompletedWorkouts(), listStoreEquipment(), getSettings()]);
+      const { workout } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: s.excludedExerciseIds, goals: s.goals, preferences: s.preferences } });
       await setWorkout(workout);
       await rememberIntakeDefaults(storeId, timeLimit, cardio);
       router.push("/workout");
@@ -183,16 +182,18 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         <ChipGroup
           label="有酸素"
           options={[
+            { value: "none" as const, label: "なし" },
             { value: "walk" as const, label: "ウォーキングのみ" },
             { value: "run" as const, label: "ランニング込み", hint: "疲労により変更あり" },
           ]}
           value={cardio}
           onChange={setCardio}
-          columns={2}
+          columns={3}
         />
       </Field>
       <Field label="メモ（任意）">
-        <input className="input" placeholder="例：今日は早めに切り上げたい" value={memo} onChange={(e) => setMemo(e.target.value)} aria-label="メモ" />
+        <input className="input" placeholder="例：次からスクワットは外してほしい" value={memo} onChange={(e) => setMemo(e.target.value)} aria-label="メモ" data-testid="intake-memo" />
+        <p className="mt-1 text-[11px] text-muted">「次から」「今後は」「いつも」などを付けて書くと、以降のメニューにも反映します。</p>
       </Field>
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg bg-bg/95 px-4 pt-2 safe-bottom backdrop-blur">

@@ -12,7 +12,9 @@ import { StoreManager } from "./StoreManager";
 import { useExercises, useStores } from "@/hooks/useSettings";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { CustomExerciseManager } from "./CustomExerciseManager";
-import type { Goals, StoreId } from "@/lib/types";
+import type { Goals, MenuPreferences, StoreId } from "@/lib/types";
+import { CARDIO_CHOICE_LABEL, EXPERIENCE_LABEL } from "@/lib/preferences";
+import { preferenceSummary } from "@/lib/planner";
 import { cardioToCSV, downloadText, parseImport, setsToCSV, toJSON } from "@/lib/export";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
@@ -163,6 +165,13 @@ export function SettingsView() {
         />
       </Section>
 
+      <Section title="メニューの希望" hint="経験・きつさ・器具・有酸素・好きな種目／やりたくない種目など。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
+        <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />
+        <button type="button" className="btn-secondary mt-2 w-full" onClick={() => router.push("/preferences")} data-testid="prefs-edit">
+          希望を見直す
+        </button>
+      </Section>
+
       <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
         <button
           type="button"
@@ -224,6 +233,46 @@ export function SettingsView() {
         onClose={() => setConfirmWipe(false)}
       />
       <p className="pb-4 text-center text-[11px] text-muted">トレーニングコーチ v0.1 ・ 1日の区切りは午前6時（Asia/Tokyo）</p>
+    </div>
+  );
+}
+
+function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPreferences }) {
+  const rows: [string, string][] = [];
+  if (prefs.experience) rows.push(["経験", EXPERIENCE_LABEL[prefs.experience]]);
+  if (prefs.timeLimitMin !== undefined) rows.push(["時間", prefs.timeLimitMin === null ? "制限なし" : `${prefs.timeLimitMin}分`]);
+  if (prefs.cardio) rows.push(["有酸素", CARDIO_CHOICE_LABEL[prefs.cardio]]);
+  const applied = preferenceSummary(prefs, goals);
+  const notes = prefs.notes ?? [];
+  if (!rows.length && !applied.length && !notes.length) return <p className="text-sm text-muted">まだ設定されていません。</p>;
+  return (
+    <div className="space-y-2 text-sm" data-testid="prefs-summary">
+      {(rows.length > 0 || applied.length > 0) && (
+        <ul className="space-y-0.5">
+          {rows.map(([k, v]) => (
+            <li key={k}>
+              <span className="text-muted">{k}：</span>
+              {v}
+            </li>
+          ))}
+          {applied.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
+      {notes.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-xs font-semibold text-accent">これまでに伝えた希望（{notes.length}件）</summary>
+          <ul className="mt-1 space-y-1 text-xs">
+            {notes.slice(0, 10).map((n) => (
+              <li key={n.id} className="rounded-lg bg-card-2 p-2">
+                <div>「{n.text}」</div>
+                <div className="text-muted">→ {n.changes.join("、") || "反映なし"}（{n.createdAt.slice(0, 10)}）</div>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

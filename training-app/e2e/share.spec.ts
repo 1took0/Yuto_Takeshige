@@ -94,6 +94,8 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
 
   // B がトレーニングを保存すると自動で共有される
   await b.goto("/start");
+  // 記録の無い新しい利用者は、最初に希望のヒアリングがある（ここではスキップ）
+  await b.getByTestId("prefs-skip").click();
   await b.getByRole("radio", { name: "30分" }).click();
   await b.getByTestId("generate").click();
   await b.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();

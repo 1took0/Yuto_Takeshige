@@ -23,7 +23,7 @@ export type Intent =
   | { type: "remove_exercise"; exerciseId: string }
   | { type: "unknown" };
 
-const REGION_WORDS: [RegExp, BodyRegion][] = [
+export const REGION_WORDS: [RegExp, BodyRegion][] = [
   [/脚|足|太もも|ハム|ふくらはぎ/, "legs"],
   [/尻|臀|ヒップ/, "glutes"],
   [/胸/, "chest"],
@@ -34,13 +34,25 @@ const REGION_WORDS: [RegExp, BodyRegion][] = [
   [/腰/, "lower_back"],
 ];
 
-function toHalfWidth(s: string) {
+export function toHalfWidth(s: string) {
   return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
 }
 
 export function findExerciseByText(text: string): string | undefined {
   const t = text.replace(/\s/g, "");
+  // 正式名がそのまま書かれていれば最優先（例：「ダンベルショルダープレス」を「ショルダープレス」と取り違えない）
+  const byName = allExercises()
+    .map((e) => ({ id: e.id, name: e.name.replace(/（.*）/, "") }))
+    .sort((a, b) => b.name.length - a.name.length)
+    .find((e) => t.includes(e.name));
+  if (byName) return byName.id;
   const aliases: [RegExp, string][] = [
+    [/スクワット/, "db_goblet_squat"],
+    [/ランジ/, "db_lunge"],
+    [/デッドリフト|RDL/i, "db_rdl"],
+    [/ベンチプレス/, "db_bench_press"],
+    [/キックバック/, "db_kickback"],
+    [/ワンハンドロウ/, "db_row"],
     [/レッグプレス/, "leg_press"],
     [/レッグカール/, "leg_curl"],
     [/レッグエクステンション|エクステンション/, "leg_extension"],
@@ -130,7 +142,7 @@ export function respond(intent: Intent, w: Workout | null, ctx: { history: Worko
       return { message: "お疲れさまです！今日のコンディションを教えてください。", navigate: "/start" };
     case "unknown":
       return {
-        message: "うまく解釈できませんでした。例：「ジムに来た」「今日は脚が疲れている」「あと20分しかない」「レッグプレスのマシンがない」「重量を上げてもいい？」「今日はランニングをやめたい」",
+        message: "うまく解釈できませんでした。例：「ジムに来た」「今日は脚が疲れている」「あと20分しかない」「レッグプレスのマシンがない」「重量を上げてもいい？」「今日はランニングをやめたい」「次からスクワットはやりたくない」",
       };
   }
   if (!w) {

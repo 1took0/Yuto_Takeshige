@@ -48,6 +48,8 @@ export type FocusArea =
   | "abs_core";
 
 export type CardioPreference = "walk" | "run";
+/** その日の有酸素の選択（"none" はトレッドミルを入れない） */
+export type CardioChoice = CardioPreference | "none";
 
 export type LoadType = "weight" | "assist" | "time" | "reps" | "level";
 
@@ -239,7 +241,7 @@ export interface IntakeAnswers {
   soreLevel?: "light" | "moderate" | "severe";
   pain: Pain;
   focus: FocusArea;
-  cardio: CardioPreference;
+  cardio: CardioChoice;
   memo?: string;
 }
 
@@ -273,7 +275,7 @@ export interface Settings {
   theme: "system" | "light" | "dark";
   lastStoreId?: StoreId;
   lastTimeLimitMin?: number | null;
-  lastCardio?: CardioPreference;
+  lastCardio?: CardioChoice;
   sound: boolean;
   vibration: boolean;
   keepAwake: boolean;
@@ -288,6 +290,8 @@ export interface Settings {
   onboarded?: boolean;
   profile?: Profile;
   goals?: Goals;
+  /** メニューの希望（初回ヒアリングと、その後に伝えられた希望） */
+  preferences?: MenuPreferences;
   /** 記録をアプリ利用者全員に共有するか（本人が選択） */
   sharing?: boolean;
   /** 共有サーバーへの未送信変更があるか */
@@ -320,6 +324,43 @@ export interface Goals {
   runStartSpeedKmh: number;
   /** マシンよりダンベル種目を優先する */
   preferDumbbell?: boolean;
+}
+
+export type Experience = "new" | "beginner" | "intermediate" | "advanced";
+export type Intensity = "light" | "normal" | "hard";
+export type EquipmentStyle = "machine" | "balanced" | "dumbbell";
+
+/** 利用者から伝えられた希望の記録（何をどう反映したか） */
+export interface PreferenceNote {
+  id: string;
+  text: string;
+  /** 反映した内容（表示用） */
+  changes: string[];
+  createdAt: string;
+}
+
+/**
+ * メニューの希望
+ * - 増やしたい部位・やりたい種目・ダンベル優先は Goals 側（priorityRegions / favoriteExerciseIds / preferDumbbell）に持つ
+ * - ここにはそれ以外の、メニュー作成で毎回考慮する希望を持つ
+ */
+export interface MenuPreferences {
+  /** 初回ヒアリングに答えた日時（未回答なら初回トレーニング時に質問する） */
+  answeredAt?: string;
+  experience?: Experience;
+  intensity?: Intensity;
+  equipmentStyle?: EquipmentStyle;
+  /** 有酸素の希望（毎回のヒアリングの初期値にもなる） */
+  cardio?: CardioChoice;
+  /** 1回のトレーニング時間の希望（分、null は制限なし） */
+  timeLimitMin?: number | null;
+  /** 控えたい部位 */
+  lessRegions?: BodyRegion[];
+  /** やりたくない種目（自動作成では選ばない） */
+  dislikedExerciseIds?: string[];
+  /** 普段から気をつけたいケガ・痛み（毎回の除外判定に使う） */
+  chronicPain?: string;
+  notes?: PreferenceNote[];
 }
 
 /** 計画の構造化パッチ（AI/ルールエンジンは予定のみ変更し、実績には触れない） */

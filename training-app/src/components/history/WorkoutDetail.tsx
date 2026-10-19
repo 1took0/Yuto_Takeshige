@@ -117,7 +117,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
       {!editing && w.notes && <p className="rounded-xl bg-card-2 p-3 text-sm">{w.notes}</p>}
       {!editing && w.intake && (
         <p className="text-xs text-muted">
-          体調 {w.intake.condition}/5・{w.intake.timeLimitMin ? `${w.intake.timeLimitMin}分` : "制限なし"}・有酸素 {w.intake.cardio === "run" ? "ランニング込み" : "ウォーキング"}
+          体調 {w.intake.condition}/5・{w.intake.timeLimitMin ? `${w.intake.timeLimitMin}分` : "制限なし"}・有酸素 {w.intake.cardio === "run" ? "ランニング込み" : w.intake.cardio === "none" ? "なし" : "ウォーキング"}
           {w.intake.soreness && `・疲労あり`}
         </p>
       )}

@@ -5,7 +5,8 @@ import { useActiveWorkout } from "@/components/workout/ActiveWorkoutProvider";
 import { useSettings } from "@/hooks/useSettings";
 import { parseIntent, respond, type CoachReply } from "@/lib/coach/intents";
 import { applyPlanPatch } from "@/lib/coach/applyPatch";
-import { listCompletedWorkouts, listStoreEquipment } from "@/lib/db/repo";
+import { listCompletedWorkouts, listStoreEquipment, saveWish } from "@/lib/db/repo";
+import { detectWish, respondToWish } from "@/lib/coach/wish";
 import { availableExercises } from "@/lib/planner";
 
 /**
@@ -72,6 +73,13 @@ export function useCoach() {
         const [history, equipment] = await Promise.all([listCompletedWorkouts(), listStoreEquipment()]);
         const storeId = workout?.storeId ?? settings.lastStoreId ?? "ichijoji";
         const availableIds = new Set(availableExercises(equipment, storeId, settings.excludedExerciseIds).map((a) => a.def.id));
+        // 今後の希望（「次からスクワットはやりたくない」など）は保存して、以降のメニュー作成に反映する
+        const wish = detectWish(t);
+        if (wish) {
+          await saveWish(t, wish);
+          setMessages((m) => [...m, applyReply(respondToWish(wish, workout))]);
+          return;
+        }
         const reply = respond(parseIntent(t, workout), workout, { history, availableIds });
         setMessages((m) => [...m, applyReply(reply)]);
       } finally {

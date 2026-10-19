@@ -272,6 +272,11 @@ test("店舗を追加してトレーニングし、削除後も記録に店舗�
 test("終了時にトレーニング時間の内訳が出て、修正でき、履歴に表示される", async ({ page }) => {
   await page.goto("/settings");
   await page.getByTestId("prefer-dumbbell").check();
+  // 保存が終わる前に画面を離れないよう、再読み込みしても残っていることを確かめてから進む
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId("prefer-dumbbell")).toBeChecked({ timeout: 1000 });
+  }).toPass();
   await startWorkout(page);
   await expect(page.locator('[data-exercise-id^="db_"]').first()).toBeVisible();
   await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();

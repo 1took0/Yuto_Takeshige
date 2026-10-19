@@ -1,5 +1,7 @@
 import { db } from "./index";
-import type { CardioPreference, ExerciseDef, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
+import type { CardioChoice, ExerciseDef, PreferenceNote, Settings, StoreDef, StoreEquipment, StoreId, Workout } from "@/lib/types";
+import { applyWishOps, type WishOp } from "@/lib/preferences";
+import { newId } from "@/lib/id";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
 import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
 import { allExercises, buildCustomExercise, newCustomExerciseId, setCustomExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
@@ -213,7 +215,7 @@ export async function kvDelete(key: string): Promise<void> {
   await db().kv.delete(key);
 }
 
-export async function rememberIntakeDefaults(storeId: StoreId, timeLimitMin: number | null, cardio: CardioPreference) {
+export async function rememberIntakeDefaults(storeId: StoreId, timeLimitMin: number | null, cardio: CardioChoice) {
   await updateSettings({ lastStoreId: storeId, lastTimeLimitMin: timeLimitMin, lastCardio: cardio });
 }
 
@@ -241,4 +243,23 @@ export async function recordTimerUse(type: TimerType, segments: TimerSegment[], 
 
 export async function deleteTimerHistory(id: string): Promise<void> {
   await kvSet(TIMER_HISTORY_KEY, (await getTimerHistory()).filter((e) => e.id !== id));
+}
+
+// ---------- メニューの希望 ----------
+const MAX_NOTES = 30;
+
+/** 伝えられた希望を保存し、以降のメニュー作成に反映する。反映内容を返す */
+export async function saveWish(text: string, ops: WishOp[]): Promise<string[]> {
+  if (!ops.length) return [];
+  const s = await getSettings();
+  const { goals, prefs, changes } = applyWishOps(s.goals, s.preferences, ops);
+  const note: PreferenceNote = { id: newId("wish"), text: text.trim().slice(0, 200), changes, createdAt: new Date().toISOString() };
+  // 有酸素・時間の希望は、毎回のヒアリングの初期値にも反映する
+  const defaults: Partial<Settings> = {};
+  for (const op of ops) {
+    if (op.kind === "cardio") defaults.lastCardio = op.value;
+    if (op.kind === "time") defaults.lastTimeLimitMin = op.minutes;
+  }
+  await updateSettings({ goals, preferences: { ...prefs, notes: [note, ...(prefs.notes ?? [])].slice(0, MAX_NOTES) }, ...defaults });
+  return changes;
 }
