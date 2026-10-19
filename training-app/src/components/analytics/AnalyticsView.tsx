@@ -3,11 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from "recharts";
 import { listCompletedWorkouts } from "@/lib/db/repo";
-import { exercisesInHistory, lateralDifference, regionFrequency, restDayCalendar, runTrend, storeStats, volumeTrend, weeklyCounts, weightTrend } from "@/lib/analytics";
+import { exercisesInHistory, restDayCalendar, runTrend, storeStats, volumeTrend, weeklyCounts, weightTrend } from "@/lib/analytics";
 import { formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { useStores } from "@/hooks/useSettings";
-import { REGION_LABEL } from "@/lib/catalog/muscles";
 import type { StoreId } from "@/lib/types";
 import { AXIS, GRID, TOOLTIP_STYLE, storeColor } from "./chartTheme";
 
@@ -38,9 +37,7 @@ export function AnalyticsView() {
 
   const trend = useMemo(() => weightTrend(workouts, selected), [workouts, selected]);
   const volume = useMemo(() => volumeTrend(workouts), [workouts]);
-  const regions = useMemo(() => regionFrequency(workouts, 28, today), [workouts, today]);
   const stores = useMemo(() => storeStats(workouts), [workouts]);
-  const lateral = useMemo(() => lateralDifference(workouts), [workouts]);
   const runs = useMemo(() => runTrend(workouts), [workouts]);
   const weeks = useMemo(() => weeklyCounts(workouts, 8, today), [workouts, today]);
   const calendar = useMemo(() => restDayCalendar(workouts, 28, today), [workouts, today]);
@@ -185,25 +182,6 @@ export function AnalyticsView() {
         </div>
       </Card>
 
-      {/* 部位頻度 */}
-      <Card title="部位ごとの頻度（直近28日）" sub="セット数と最終実施からの日数">
-        <ul className="space-y-1 text-sm">
-          {regions.map((r) => {
-            const max = Math.max(1, ...regions.map((x) => x.sets));
-            return (
-              <li key={r.region} className="flex items-center gap-2">
-                <span className="w-10 shrink-0 text-xs text-muted">{REGION_LABEL[r.region]}</span>
-                <div className="h-4 flex-1 overflow-hidden rounded bg-card-2">
-                  <div className="h-full rounded" style={{ width: `${(r.sets / max) * 100}%`, background: storeColor("ichijoji", dark) }} />
-                </div>
-                <span className="w-14 shrink-0 text-right text-xs tabular">{r.sets}セット</span>
-                <span className={`w-14 shrink-0 text-right text-xs tabular ${r.daysSince !== undefined && r.daysSince >= 7 ? "text-warn" : "text-muted"}`}>{r.daysSince !== undefined ? `${r.daysSince}日前` : "—"}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
-
       {/* 店舗別 */}
       <Card title="店舗別の記録">
         <ul className="space-y-1 text-sm">
@@ -216,15 +194,6 @@ export function AnalyticsView() {
             </li>
           ))}
         </ul>
-      </Card>
-
-      {/* 左右差 */}
-      <Card title="左右の筋力差（片手種目の最新記録）" sub="片手種目の左右の重量と実回数です。実回数を入力すると差を把握しやすくなります">
-        {lateral.length === 0 ? (
-          <p className="text-sm text-muted">片手種目の記録がありません</p>
-        ) : (
-          <SimpleTable head={["種目", "日付", "左", "右", "左/右 回数"]} rows={lateral.map((l) => [l.name, l.date, `${l.left ?? "?"}kg`, `${l.right ?? "?"}kg`, l.leftReps !== undefined || l.rightReps !== undefined ? `${l.leftReps ?? "?"}/${l.rightReps ?? "?"}` : "未入力"])} />
-        )}
       </Card>
 
       {/* ランニング */}

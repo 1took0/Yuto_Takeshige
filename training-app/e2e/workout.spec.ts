@@ -232,6 +232,9 @@ test("分析画面とダークモードが表示される", async ({ page }) => 
   await page.goto("/analytics");
   await expect(page.getByRole("heading", { name: "分析" })).toBeVisible();
   await expect(page.getByText("種目ごとの重量推移")).toBeVisible();
+  // 左右の筋力差・部位ごとの頻度は表示しない
+  await expect(page.getByText("左右の筋力差")).toHaveCount(0);
+  await expect(page.getByText("部位ごとの頻度")).toHaveCount(0);
   await page.goto("/settings");
   await page.getByRole("button", { name: "ダーク" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
