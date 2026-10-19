@@ -4,6 +4,7 @@ import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { REGION_LABEL } from "@/lib/catalog/muscles";
 import { exerciseMinutes } from "@/lib/planner";
 import { buildTreadmillPlan } from "@/lib/planner/cardio";
+import { comebackAdjust, parseComeback } from "@/lib/planner/comeback";
 import { allTargetsReported, exerciseHistory, workingWeight } from "@/lib/planner/history";
 
 /**
@@ -21,6 +22,7 @@ export type Intent =
   | { type: "skip_cardio" }
   | { type: "add_exercise"; exerciseId: string }
   | { type: "remove_exercise"; exerciseId: string }
+  | { type: "comeback"; days?: number; text: string }
   | { type: "unknown" };
 
 export const REGION_WORDS: [RegExp, BodyRegion][] = [
@@ -86,7 +88,10 @@ export function findExerciseByText(text: string): string | undefined {
 export function parseIntent(raw: string, w: Workout | null): Intent {
   const text = toHalfWidth(raw.trim());
   if (!text) return { type: "unknown" };
-  if (/ジムに(来|き)た|トレーニング(を)?(開始|始め|スタート)|始めよう|はじめる/.test(text)) return { type: "start_session" };
+  // 「久しぶりにジムに来た」なども、メモとしてヒアリングに引き継いで軽めのメニューにする
+  if (/ジムに(来|き)た|トレーニング(を)?(開始|始め|スタート)|始めよう|はじめる/.test(text)) return { type: "start_session", memo: parseComeback(text) ? raw.trim() : undefined };
+  const cb = parseComeback(text);
+  if (cb) return { type: "comeback", days: cb.days, text: raw.trim() };
   const timeMatch = text.match(/あと\s*(\d+)\s*分|(\d+)\s*分(しか|で|以内)/);
   if (timeMatch) return { type: "time_left", minutes: Number(timeMatch[1] ?? timeMatch[2]) };
   if (/ランニング.*(やめ|なし|しない|無し|止め)|走(ら|り)たくない|走るのをやめ|歩きだけ|ウォーキングだけ/.test(text)) return { type: "stop_running" };
@@ -139,7 +144,14 @@ function alternatives(exerciseId: string, w: Workout, availableIds: Set<string>)
 export function respond(intent: Intent, w: Workout | null, ctx: { history: Workout[]; availableIds: Set<string> }): CoachReply {
   switch (intent.type) {
     case "start_session":
-      return { message: "お疲れさまです！今日のコンディションを教えてください。", navigate: "/start" };
+      return intent.memo
+        ? { message: "お疲れさまです！久しぶりなので、今日は軽めのメニューにします。今日のコンディションを教えてください。", navigate: `/start?memo=${encodeURIComponent(intent.memo)}` }
+        : { message: "お疲れさまです！今日のコンディションを教えてください。", navigate: "/start" };
+    case "comeback":
+      if (!w) {
+        return { message: "了解です。久しぶりなので、次に作るメニューは重量を下げて軽めにします。今日のコンディションを教えてください。", navigate: `/start?memo=${encodeURIComponent(intent.text)}` };
+      }
+      break;
     case "unknown":
       return {
         message: "うまく解釈できませんでした。例：「ジムに来た」「今日は脚が疲れている」「あと20分しかない」「レッグプレスのマシンがない」「重量を上げてもいい？」「今日はランニングをやめたい」「次からスクワットはやりたくない」",
@@ -149,6 +161,26 @@ export function respond(intent: Intent, w: Workout | null, ctx: { history: Worko
     return { message: "進行中のトレーニングがありません。「ジムに来た」または「トレーニング開始」で始めましょう。", navigate: intent.type === "fatigue" ? "/start" : undefined };
   }
   switch (intent.type) {
+    case "comeback": {
+      // 進行中のメニュー：まだ1セットもしていない種目の重量を下げ、長いブランクならセット数も減らす
+      const adj = comebackAdjust(intent.days);
+      const ops: PlanPatch["ops"] = [];
+      const names: string[] = [];
+      for (const e of w.exercises) {
+        const def = getExercise(e.exerciseId);
+        if (!def || e.sets.some((s) => s.completed)) continue;
+        const cur = e.sets.find((s) => !s.completed && !s.excluded)?.weight;
+        if (cur !== undefined && def.increment) {
+          const nw = Math.max(def.increment, Math.round((cur * adj.loadFactor) / def.increment) * def.increment);
+          if (nw < cur) ops.push({ op: "set_weight", exerciseId: e.exerciseId, weight: nw, reason: "久しぶりのため軽く" });
+        }
+        const n = e.sets.filter((s) => !s.excluded).length;
+        if (adj.setsDelta < 0 && n > 2) ops.push({ op: "set_sets", exerciseId: e.exerciseId, sets: n + adj.setsDelta, reason: "久しぶりのためセット数を減らす" });
+        names.push(e.name);
+      }
+      if (!ops.length) return { message: `了解です。${adj.label.replace(/のため.*$/, "")}とのことなので、無理のない範囲で、きつければセット数を減らしてください。` };
+      return { message: `了解です。${adj.label}（${names.join("・")}）。フォームを確かめながら進めてください。`, patch: { message: "久しぶりの調整", ops } };
+    }
     case "fatigue": {
       const regions = intent.regions.length ? intent.regions : [];
       const ops: PlanPatch["ops"] = [];

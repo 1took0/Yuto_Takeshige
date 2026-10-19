@@ -4,12 +4,13 @@ import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
 import { allExercises, customExercises, exerciseName, getExercise } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
 import { storeName, workoutStoreName } from "@/lib/catalog/stores";
-import { trainingDateOf } from "@/lib/date/trainingDay";
+import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
+import { detectComeback, type Comeback } from "./comeback";
 import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
-import { daysSince, doneInLastN, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
+import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
 
 /**
  * ルールベースのメニュー生成
@@ -192,6 +193,9 @@ export function generatePlan(input: PlanInput): PlanResult {
   const lastTrained = lastTrainedByMuscle(history);
   const excluded = new Set(settings.excludedExerciseIds);
   const goals = goalsOrDefault(settings.goals);
+  // 久しぶりのトレーニング（前回から2週間以上空いた、またはメモで「久しぶり」など）なら軽めに再開する
+  const lastDate = sortByDateDesc(history)[0]?.trainingDate;
+  const comeback = detectComeback(lastDate ? diffDays(today, lastDate) : undefined, intake.memo);
 
   // ---- 有酸素の方針と時間配分 ----
   const noCardio = intake.cardio === "none";
@@ -282,6 +286,11 @@ export function generatePlan(input: PlanInput): PlanResult {
         score -= 5;
         notes.push("この店舗での器具の有無は未確認です。無ければ設定から除外できます");
       }
+      // 久しぶり
+      if (comeback) {
+        loadFactor *= comeback.loadFactor;
+        setsDelta += comeback.setsDelta;
+      }
       // 体調
       if (intake.condition <= 2) {
         loadFactor *= 0.9;
@@ -328,7 +337,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
 
   // ---- 重量・回数の決定 ----
-  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs, storeEquipment));
+  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs, storeEquipment, comeback));
 
   // ---- 有酸素 ----
   const cardio = [];
@@ -349,6 +358,7 @@ export function generatePlan(input: PlanInput): PlanResult {
 
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
   summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）＋バイク${budget.warmupMin}分`);
+  if (comeback) summary.push(comeback.label);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);
   const wishes = preferenceSummary(prefs, goals);
   if (wishes.length) summary.push(`希望を反映：${wishes.join("・")}`);
@@ -391,6 +401,7 @@ export function buildPlannedExercise(
   goals: Goals = goalsOrDefault(undefined),
   prefs: MenuPreferences = {},
   storeEquipment: StoreEquipment[] = [],
+  comeback: Comeback | null = null,
 ): WorkoutExercise {
   const def = c.def;
   const sets = Math.max(2, def.defaultSets + c.setsDelta);
@@ -423,10 +434,19 @@ export function buildPlannedExercise(
   } else if (same[0] && workingWeight(same[0].exercise) !== undefined) {
     // 同じ店舗の記録から、体格・経験・種目に合わせたペースで進める
     weightReference = "same_store";
-    const next = decideNextLoad(def, same.map((h) => toPastSession(h.exercise)), step, profile);
-    weight = next.weight;
-    reps = next.reps;
-    notes.push(...next.notes);
+    const past = same.map((h) => toPastSession(h.exercise));
+    const next = decideNextLoad(def, past, step, profile);
+    if (comeback && (next.kind === "increase_weight" || next.kind === "increase_reps")) {
+      // 久しぶりの日は上げない。前回の重量・回数を基準に下げて再開する
+      weight = past[0].weight;
+      reps = past[0].reps;
+      notes.push("久しぶりのため、前回の重量から下げて再開します（今回は重量・回数を上げません）");
+    } else {
+      weight = next.weight;
+      reps = next.reps;
+      notes.push(...next.notes);
+      if (comeback) notes.push("久しぶりのため、いつもより軽めにしています");
+    }
   } else if (isOtherStore && ref && workingWeight(ref.exercise) !== undefined) {
     // 別店舗の記録は参考値：同じ重量とは限らないので1段階軽めから
     weightReference = "other_store";
