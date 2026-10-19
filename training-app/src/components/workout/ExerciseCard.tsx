@@ -6,7 +6,7 @@ import { equipmentName } from "@/lib/catalog/equipment";
 import { musclesLabel } from "@/lib/catalog/muscles";
 import { findStore } from "@/lib/catalog/stores";
 import { formatJaDate } from "@/lib/date/trainingDay";
-import { addSet, isExerciseDone, removeExercise, removeSet, setExcluded, setExerciseStatus, toggleSetCompleted, updateExercise, updateSet } from "@/lib/workout/edit";
+import { addSet, isExerciseDone, removeExercise, removeSet, setExcluded, toggleSetCompleted, updateExercise, updateSet } from "@/lib/workout/edit";
 import { GripIcon, TrashIcon } from "@/components/ui/Icons";
 import { SetRow } from "./SetRow";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -167,14 +167,9 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs">
             {!editOnly && (
-              <>
-                <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={onFocus}>
-                  {focused ? "フォーカス解除" : "この種目に集中"}
-                </button>
-                <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => mutate((w) => setExerciseStatus(w, e.id, e.status === "skipped" ? "planned" : "skipped"))}>
-                  {e.status === "skipped" ? "スキップ解除" : "今日はスキップ"}
-                </button>
-              </>
+              <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={onFocus}>
+                {focused ? "フォーカス解除" : "この種目に集中"}
+              </button>
             )}
             <button type="button" className="tap ml-auto flex items-center gap-1 px-2 text-danger" onClick={() => setConfirmRemoveEx(true)} aria-label="種目を削除">
               <TrashIcon className="h-4 w-4" />

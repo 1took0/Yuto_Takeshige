@@ -426,7 +426,8 @@ test("種目カード：線画のゴミ箱・フォームは閉じた状態・�
   await first.getByTestId("form-toggle").click();
   await expect(first.getByTestId("form-panel")).toBeVisible();
   await expect(first.getByLabel("種目メモ")).toBeVisible();
-  // 上下の矢印は無い
+  // 上下の矢印と「今日はスキップ」は無い
+  await expect(page.getByRole("button", { name: "今日はスキップ" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "上へ移動" })).toHaveCount(0);
 
   // 2番目の種目の見出しを長押しして上へ動かすと、1番目と入れ替わる
