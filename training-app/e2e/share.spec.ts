@@ -38,7 +38,7 @@ test("新しい利用者は空の履歴から始まり、目標を設定でき�
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
   await page.goto("/history");
   await expect(page.getByText("記録がありません")).toBeVisible();
-  await page.goto("/settings");
+  await page.goto("/settings#goals");
   await expect(page.getByRole("radio", { name: "右が弱い" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("button", { name: "筋力向上" })).toHaveAttribute("aria-pressed", "true");
   await page.context().close();
@@ -53,7 +53,7 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
   // A：作成者の履歴を取り込み、共有オン
   const a = await newUser(browser);
   await onboard(a, nameA, { importSeed: true, share: true });
-  await a.goto("/settings");
+  await a.goto("/settings#share");
   await expect(a.getByTestId("share-toggle")).toHaveAttribute("aria-checked", "true");
 
   // C：共有しない
@@ -88,14 +88,14 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
   await expect(b.getByText("レッグプレス")).toHaveCount(0);
 
   // B が共有をオンにすると表示される
-  await b.goto("/settings");
+  await b.goto("/settings#share");
   await b.getByTestId("share-toggle").click();
   await expect(b.getByTestId("share-toggle")).toHaveAttribute("aria-checked", "true");
   await b.goto("/community");
   await expect(b.getByTestId("community-user").filter({ hasText: nameB })).toContainText("（あなた）");
 
   // A が共有をやめると、B から見えなくなる
-  await a.goto("/settings");
+  await a.goto("/settings#share");
   await a.getByTestId("share-toggle").click();
   await a.getByRole("button", { name: "共有をやめる" }).click();
   await expect(a.getByTestId("share-toggle")).toHaveAttribute("aria-checked", "false");

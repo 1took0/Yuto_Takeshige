@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/Toast";
 import { disableSharing } from "@/lib/share/client";
 import { musclesLabel } from "@/lib/catalog/muscles";
 import { ChipGroup } from "@/components/ui/Chips";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { NumberField } from "@/components/ui/NumberField";
 
 export function SettingsView() {
@@ -70,19 +71,31 @@ export function SettingsView() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <h1 className="text-2xl font-bold">設定</h1>
+      <p className="text-xs text-muted">項目を押すと開きます。</p>
 
       <ShareSettings />
 
-      <Section title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
+      <Section id="preferences" title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
         <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />
         <button type="button" className="btn-primary mt-2 w-full" onClick={() => router.push("/preferences")} data-testid="prefs-edit">
           ヒアリング結果を編集する
         </button>
       </Section>
 
-      <Section title="表示">
+      <Section id="goals" title="目標（メニュー作成の前提）" hint="変更は次のメニュー作成から反映されます。">
+        <GoalsEditor
+          value={goalsDraft ?? goalsOrDefault(settings.goals)}
+          onChange={(g) => {
+            // 保存の完了を待たずに画面へ反映する
+            setGoalsDraft(g);
+            void update({ goals: g });
+          }}
+        />
+      </Section>
+
+      <Section id="display" title="表示">
         <div className="flex gap-2">
           {(["system", "light", "dark"] as const).map((t) => (
             <button key={t} type="button" className="chip" data-selected={settings.theme === t} onClick={() => update({ theme: t })}>
@@ -92,7 +105,7 @@ export function SettingsView() {
         </div>
       </Section>
 
-      <Section title="タイマー">
+      <Section id="timer" title="タイマー">
         <div className="flex flex-wrap gap-3 text-sm">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={settings.sound} onChange={(e) => update({ sound: e.target.checked })} /> 区間切替の音
@@ -119,7 +132,7 @@ export function SettingsView() {
 
       <StoreManager onAdded={(id) => setStore(id)} />
 
-      <Section title="店舗の器具" hint="「ない」にすると次回以降のメニューから自動的に除外されます。未確認は推測なので、実際に確認したら更新してください。「刻み」はその器具で何kgずつ重量を変えられるかで、メニューの重量と ± ボタンに使います。">
+      <Section id="equipment" title="店舗の器具" hint="「ない」にすると次回以降のメニューから自動的に除外されます。未確認は推測なので、実際に確認したら更新してください。「刻み」はその器具で何kgずつ重量を変えられるかで、メニューの重量と ± ボタンに使います。">
         <div className="mb-2 flex flex-wrap gap-1">
           {stores.map((s) => (
             <button key={s.id} type="button" className="chip flex-1 whitespace-nowrap" data-selected={store === s.id} onClick={() => setStore(s.id)}>
@@ -161,7 +174,7 @@ export function SettingsView() {
 
       <CustomExerciseManager />
 
-      <Section title="自動メニューから除外する種目" hint="チェックした種目は自動作成に含めません（手動追加は可能）。バードドッグは最初から含まれていません。">
+      <Section id="excluded" title="自動メニューから除外する種目" hint="チェックした種目は自動作成に含めません（手動追加は可能）。バードドッグは最初から含まれていません。">
         <ul className="grid grid-cols-1 gap-1 text-sm">
           {allEx.map((e) => {
             const checked = settings.excludedExerciseIds.includes(e.id);
@@ -182,18 +195,7 @@ export function SettingsView() {
         </ul>
       </Section>
 
-      <Section title="目標（メニュー作成の前提）" hint="変更は次のメニュー作成から反映されます。">
-        <GoalsEditor
-          value={goalsDraft ?? goalsOrDefault(settings.goals)}
-          onChange={(g) => {
-            // 保存の完了を待たずに画面へ反映する
-            setGoalsDraft(g);
-            void update({ goals: g });
-          }}
-        />
-      </Section>
-
-      <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
+      <Section id="access" title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
         <button
           type="button"
           className="btn-secondary px-3 py-1.5 text-sm"
@@ -214,7 +216,7 @@ export function SettingsView() {
       </Section>
 
 
-      <Section title="データ" hint={`記録 ${workouts.length} 件（この端末の IndexedDB に保存）。機種変更時は JSON でエクスポート → 新しい端末でインポートしてください。`}>
+      <Section id="data" title="データ" hint={`記録 ${workouts.length} 件（この端末の IndexedDB に保存）。機種変更時は JSON でエクスポート → 新しい端末でインポートしてください。`}>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="btn-secondary" onClick={exportJSON}>
             JSON エクスポート
@@ -314,12 +316,10 @@ function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPrefere
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ id, title, hint, children }: { id: string; title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="card p-3">
-      <h2 className="font-semibold">{title}</h2>
-      {hint && <p className="mb-2 text-xs text-muted">{hint}</p>}
-      <div className={hint ? "" : "mt-2"}>{children}</div>
-    </section>
+    <Collapsible id={id} title={title} hint={hint}>
+      {children}
+    </Collapsible>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { useState } from "react";
 import { useStores } from "@/hooks/useSettings";
 import { addStore, countWorkoutsAtStore, deleteStore, renameStore } from "@/lib/db/repo";
@@ -28,11 +29,8 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
   };
 
   return (
-    <section id="stores" className="card space-y-3 p-3">
-      <div>
-        <h2 className="font-semibold">店舗</h2>
-        <p className="text-xs text-muted">よく行く店舗を追加できます。追加した店舗は、トレーニング開始時の店舗の選択肢と器具の設定に表示されます。</p>
-      </div>
+    <Collapsible id="stores" title="店舗" hint="よく行く店舗を追加できます。追加した店舗は、トレーニング開始時の店舗の選択肢と器具の設定に表示されます。" badge={<span className="text-xs text-muted">{stores.length}店舗</span>}>
+      <div className="space-y-3">
       <ul className="divide-y divide-border" data-testid="store-list">
         {stores.map((s) => (
           <li key={s.id} className="flex items-center gap-2 py-2 text-sm">
@@ -105,6 +103,7 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
         }}
         onClose={() => setRemoving(null)}
       />
-    </section>
+      </div>
+    </Collapsible>
   );
 }

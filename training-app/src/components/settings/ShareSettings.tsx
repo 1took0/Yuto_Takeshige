@@ -1,4 +1,5 @@
 "use client";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { useEffect, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { createProfile, disableSharing, enableSharing, fullSync, shareApi } from "@/lib/share/client";
@@ -61,8 +62,8 @@ export function ShareSettings() {
 
   const last = settings.lastSharedAt;
   return (
-    <section id="share" className="card space-y-3 p-3">
-      <h2 className="font-semibold">プロフィールと記録の共有</h2>
+    <Collapsible id="share" title="プロフィールと記録の共有" badge={<span className="text-xs text-muted">{settings.sharing ? "共有中" : "共有していない"}</span>}>
+      <div className="space-y-3">
       <div className="flex gap-2">
         <input className="input" maxLength={20} placeholder="表示名" value={displayName} onChange={(e) => setName(e.target.value)} aria-label="表示名" />
         <button type="button" className="btn-secondary shrink-0" onClick={saveName} disabled={name === null || !displayName.trim()}>
@@ -119,6 +120,7 @@ export function ShareSettings() {
         </>
       )}
       <ConfirmDialog open={confirmOff} title="共有をやめますか？" message="サーバー上のあなたの記録は削除され、他の利用者からは見えなくなります。この端末の記録はそのまま残ります。" confirmLabel="共有をやめる" danger onConfirm={turnOff} onClose={() => setConfirmOff(false)} />
-    </section>
+      </div>
+    </Collapsible>
   );
 }

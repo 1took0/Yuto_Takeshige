@@ -1,4 +1,5 @@
 "use client";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { useState } from "react";
 import { useExercises } from "@/hooks/useSettings";
 import { deleteCustomExercise } from "@/lib/db/repo";
@@ -14,11 +15,8 @@ export function CustomExerciseManager() {
   const [form, setForm] = useState<{ editing?: ExerciseDef } | null>(null);
   const [removing, setRemoving] = useState<ExerciseDef | null>(null);
   return (
-    <section id="exercises" className="card space-y-3 p-3">
-      <div>
-        <h2 className="font-semibold">自分の種目</h2>
-        <p className="text-xs text-muted">カタログに無い種目を作れます。トレーニング中の「種目を追加」や、メニューの自動作成で使えます。</p>
-      </div>
+    <Collapsible id="exercises" title="自分の種目" hint="カタログに無い種目を作れます。トレーニング中の「種目を追加」や、メニューの自動作成で使えます。" badge={mine.length ? <span className="text-xs text-muted">{mine.length}件</span> : undefined}>
+      <div className="space-y-3">
       {mine.length === 0 ? (
         <p className="text-sm text-muted">まだありません。</p>
       ) : (
@@ -58,6 +56,7 @@ export function CustomExerciseManager() {
         onConfirm={() => removing && deleteCustomExercise(removing.id)}
         onClose={() => setRemoving(null)}
       />
-    </section>
+      </div>
+    </Collapsible>
   );
 }

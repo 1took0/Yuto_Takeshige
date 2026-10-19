@@ -43,7 +43,7 @@ test("初回ヒアリングの希望とコーチに伝えた希望がメニュ�
   await expect(page.getByTestId("coach-reply")).toContainText("次回以降のメニューに反映します");
   await page.goto("/workout");
   await expect(page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" })).toHaveCount(0);
-  await page.goto("/settings");
+  await page.goto("/settings#preferences");
   await expect(page.getByTestId("prefs-summary")).toContainText("やりたくない種目：レッグプレス・チェストプレス");
   await expect(page.getByTestId("prefs-summary")).toContainText("経験：はじめて");
   // 設定画面からヒアリング結果を編集できる

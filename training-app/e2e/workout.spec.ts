@@ -203,7 +203,7 @@ test("インターバルを自由に設定して切り替わる。履歴から�
 });
 
 test("設定：器具を「ない」にすると次回のメニューから除外される", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings#equipment");
   const row = page.getByTestId("equipment-row").filter({ hasText: "ペックフライマシン" });
   await row.getByRole("radio", { name: "ない" }).click();
   await expect(row.getByRole("radio", { name: "ない" })).toHaveAttribute("aria-checked", "true");
@@ -235,7 +235,7 @@ test("分析画面とダークモードが表示される", async ({ page }) => 
   // 左右の筋力差・部位ごとの頻度は表示しない
   await expect(page.getByText("左右の筋力差")).toHaveCount(0);
   await expect(page.getByText("部位ごとの頻度")).toHaveCount(0);
-  await page.goto("/settings");
+  await page.goto("/settings#display");
   await page.getByRole("button", { name: "ダーク" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
@@ -243,11 +243,12 @@ test("分析画面とダークモードが表示される", async ({ page }) => 
 });
 
 test("店舗を追加してトレーニングし、削除後も記録に店舗名が残る", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings#stores");
   await page.getByTestId("store-name").fill("LifeFit 北白川店");
   await page.getByTestId("store-add").click();
   await expect(page.getByTestId("store-list")).toContainText("LifeFit 北白川店");
-  // 器具の設定タブに出て、選択されている
+  // 器具の設定を開くと、追加した店舗のタブが選択されている
+  await page.getByTestId("settings-equipment").getByRole("button", { name: /店舗の器具/ }).click();
   await expect(page.locator(".chip[data-selected=true]", { hasText: "北白川" })).toBeVisible();
 
   await page.goto("/start");
@@ -262,7 +263,7 @@ test("店舗を追加してトレーニングし、削除後も記録に店舗�
   await expect(page.getByText("LifeFit 北白川店").first()).toBeVisible();
 
   // 店舗を削除しても履歴には名前が残る
-  await page.goto("/settings");
+  await page.goto("/settings#stores");
   const row = page.getByTestId("store-list").locator("li", { hasText: "LifeFit 北白川店" });
   await row.getByRole("button", { name: "削除" }).click();
   await expect(page.getByRole("alertdialog")).toContainText("記録が 1 件");
@@ -273,7 +274,7 @@ test("店舗を追加してトレーニングし、削除後も記録に店舗�
 });
 
 test("終了時にトレーニング時間の内訳が出て、修正でき、履歴に表示される", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings#goals");
   // 設定の読み込み前に押すと保存されないことがあるため、再読み込みしても残っていることを確かめてから進む
   const preferDumbbell = page.getByTestId("prefer-dumbbell");
   await expect(async () => {
@@ -344,7 +345,7 @@ test("トレーニングをキャンセルでき、有酸素の入力は合計�
 
 test("種目を自分で作り、トレーニングで使える。削除しても記録に名前が残る", async ({ page }) => {
   // 設定から作成（自動作成に含める）
-  await page.goto("/settings");
+  await page.goto("/settings#exercises");
   await page.getByTestId("custom-ex-new").click();
   const form = page.getByTestId("custom-ex-form");
   await form.getByTestId("custom-ex-name").fill("ケーブルクランチ");
@@ -378,7 +379,7 @@ test("種目を自分で作り、トレーニングで使える。削除して�
   await expect(page.getByTestId("durations")).toContainText("ダンベル");
 
   // 削除しても記録に名前が残る
-  await page.goto("/settings");
+  await page.goto("/settings#exercises");
   const row = page.getByTestId("custom-ex-list").locator("li", { hasText: "ダンベルプルオーバー" });
   await row.getByRole("button", { name: "削除" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
@@ -463,7 +464,7 @@ test("種目カード：線画のゴミ箱・フォームは閉じた状態・�
 
 test("休憩タイマー：設定した時間で始まり ±10秒で調整でき、最終セットの後は出ない", async ({ page }) => {
   // 設定で休憩時間を1分にする（保存を確かめてから進む）
-  await page.goto("/settings");
+  await page.goto("/settings#timer");
   const oneMin = page.getByRole("radiogroup", { name: "セット間の休憩時間" }).getByRole("radio", { name: "1分" });
   await expect(async () => {
     if ((await oneMin.getAttribute("aria-checked")) !== "true") await oneMin.click();
@@ -556,4 +557,25 @@ test("重量の刻みを店舗ごとに変えられ、全セット終えた次�
   if (!(await next.getByTestId("form-toggle").isVisible())) await next.locator("header").click();
   await expect(next.getByTestId("set-notice").first()).toContainText("新しい重量に挑戦（前回 50kg → 52.5kg）");
   await expect(next.getByLabel("重量", { exact: true }).last()).toHaveValue("52.5");
+});
+
+test("設定画面は項目ごとに開閉でき、他の画面からのリンクでは該当の項目が開く", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "設定" })).toBeVisible();
+  // 最初はすべて閉じている
+  const headers = page.locator("[data-testid^=settings-] > button[aria-expanded]");
+  expect(await headers.count()).toBeGreaterThanOrEqual(10);
+  for (const h of await headers.all()) await expect(h).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: "ダーク" })).toHaveCount(0);
+  // 押すと開き、もう一度押すと閉じる
+  const display = page.getByTestId("settings-display").getByRole("button", { name: /表示/ });
+  await display.click();
+  await expect(page.getByRole("button", { name: "ダーク" })).toBeVisible();
+  await display.click();
+  await expect(page.getByRole("button", { name: "ダーク" })).toHaveCount(0);
+  // ヒアリング画面の「店舗を追加・編集」からは店舗の項目が開いた状態で表示される
+  await page.goto("/start");
+  await page.getByRole("link", { name: "＋ 店舗を追加・編集" }).click();
+  await expect(page).toHaveURL(/\/settings#stores/);
+  await expect(page.getByTestId("store-name")).toBeVisible();
 });
