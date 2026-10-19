@@ -121,6 +121,8 @@ export interface NewExerciseOptions {
   rampFirst?: boolean;
   /** この店舗での重量の刻み（未指定なら種目の標準） */
   step?: number;
+  /** メニュー作成時の目標回数として残す（自動作成のときだけ。自分で入力した回数はそのまま目標になる） */
+  recordPlan?: boolean;
 }
 
 export function buildExercise(def: ExerciseDef, opts: NewExerciseOptions = {}): WorkoutExercise {
@@ -142,7 +144,7 @@ export function buildExercise(def: ExerciseDef, opts: NewExerciseOptions = {}): 
     } else {
       s.reps = opts.reps ?? def.defaultReps;
       // メニュー作成時の目標回数を残す（届かずに回数を下げて記録したときに「未達成」と分かるように）
-      s.plannedReps = s.reps;
+      if (opts.recordPlan) s.plannedReps = s.reps;
       if (def.loadType !== "reps") s.weight = weight;
     }
     if (def.unilateral && def.loadType !== "time") {
@@ -273,6 +275,7 @@ export function newManualWorkout(storeId: string, storeLabel: string, now = new 
     cardio: [],
     status: "active",
     source: "app",
+    manual: true,
     ui: { focusedExerciseId: null },
     createdAt: iso,
     updatedAt: iso,
@@ -350,4 +353,9 @@ export function moveItemTo(w: Workout, id: string, toIndex: number): Workout {
   const pos = new Map(items.map((x, i) => [x, i]));
   const exercises = [...w.exercises].sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0));
   return touch({ ...w, exercises, itemOrder: items });
+}
+
+/** 作成済みの種目を末尾に加える */
+export function insertExercise(w: Workout, ex: WorkoutExercise): Workout {
+  return touch({ ...w, exercises: [...w.exercises, ex] });
 }

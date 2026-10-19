@@ -269,6 +269,8 @@ export interface Workout {
   itemOrder?: string[];
   status: WorkoutStatus;
   source: "app" | "import";
+  /** メニューを自動作成せず、自分で入力した記録 */
+  manual?: boolean;
   /** 折りたたみ等のUI状態 */
   ui?: { focusedExerciseId?: string | null };
   notes?: string;

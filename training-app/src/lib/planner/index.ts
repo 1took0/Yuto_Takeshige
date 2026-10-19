@@ -8,6 +8,7 @@ import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
 import { detectComeback, type Comeback } from "./comeback";
+import { manualHabits } from "./habits";
 import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
 import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
@@ -208,6 +209,13 @@ export function generatePlan(input: PlanInput): PlanResult {
   const usedExercise = new Set<string>();
   // 自作種目のうち「メニュー自動作成に含める」ものは、それぞれ独立した枠として候補に加える
   const slots: Slot[] = [...SLOTS, ...customExercises().filter((d) => d.autoMenu).map((d) => ({ key: `custom:${d.id}`, candidates: [d.id], regions: d.regions, base: 60 }))];
+  // 自分で入力したメニューでよく行う種目は、自動作成の枠に無い種目（自作種目など）でも候補に加える
+  const habits = manualHabits(history, today);
+  for (const [id, f] of habits.freq) {
+    const def = getExercise(id);
+    if (!def || f < 1 / 3 || slots.some((sl) => sl.candidates.includes(id))) continue;
+    slots.push({ key: `habit:${id}`, candidates: [id], regions: def.regions, base: 62 });
+  }
   for (const slot of slots) {
     let chosen: Candidate | null = null;
     for (const exId of slot.candidates) {
@@ -228,6 +236,13 @@ export function generatePlan(input: PlanInput): PlanResult {
       let score = slot.base + (def.priority - 80) * 0.2;
       let loadFactor = 1;
       let setsDelta = 0;
+
+      // 自分で入力したメニューでよく行う種目は選びやすく、自分のメニューに一度も入れていない種目は少し選びにくく
+      const habit = habits.freq.get(exId) ?? 0;
+      if (habit > 0) {
+        score += 40 * habit;
+        notes.push("自分で組んだメニューでよく行っている種目です");
+      } else if (habits.count >= 2) score -= 10;
 
       // 重点部位
       if (focusRegions) {
@@ -332,9 +347,11 @@ export function generatePlan(input: PlanInput): PlanResult {
     remaining -= mins;
     chosen.push(c);
   }
-  // 実施順序はスロット順（脚→胸→背中→腕→腹筋・体幹）に戻す
-  const order = new Map(SLOTS.map((s, i) => [s.key, i]));
-  chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
+  // 実施順序：自分で入力したメニューの並び順があればそれに合わせ、無い種目は標準の順（脚→胸→背中→腕→腹筋・体幹）
+  const order = new Map(slots.map((s, i) => [s.key, i]));
+  const posOf = (c: Candidate) => habits.position.get(c.def.id) ?? (order.get(c.slot.key) ?? slots.length) / slots.length;
+  if (habits.count > 0) chosen.sort((a, b) => posOf(a) - posOf(b));
+  else chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
 
   // ---- 重量・回数の決定 ----
   const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs, storeEquipment, comeback));
@@ -359,6 +376,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
   summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）＋バイク${budget.warmupMin}分`);
   if (comeback) summary.push(comeback.label);
+  if (habits.count > 0) summary.push(`自分で組んだメニュー（直近${habits.count}回）の種目・順番を参考にしました`);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);
   const wishes = preferenceSummary(prefs, goals);
   if (wishes.length) summary.push(`希望を反映：${wishes.join("・")}`);
@@ -498,6 +516,7 @@ export function buildPlannedExercise(
     weight,
     seconds,
     step,
+    recordPlan: true,
     weightReference,
     rampFirst: weight !== undefined && weight >= 20 && def.loadType === "weight",
     rationale: notes.join("。"),
@@ -522,4 +541,20 @@ export function availableExercises(storeEquipment: StoreEquipment[], storeId: In
     .map((def) => ({ def, av: availability(storeEquipment, storeId, def.equipmentId) }))
     .filter((x) => x.av.ok)
     .map((x) => ({ def: x.def, confirmed: x.av.confirmed }));
+}
+
+/**
+ * 1種目だけ、記録と重量の進め方から重量・回数を決める（トレーニング中に自分で種目を追加したとき）
+ * 自分で入力するメニューでは、決めた回数を目標として扱う（後から変えた回数も目標のまま）
+ */
+export function planSingleExercise(
+  exerciseId: string,
+  input: { history: Workout[]; storeId: IntakeAnswers["storeId"]; storeEquipment: StoreEquipment[]; settings: { goals?: Goals; preferences?: MenuPreferences }; manual?: boolean },
+): WorkoutExercise | null {
+  const def = getExercise(exerciseId);
+  if (!def) return null;
+  const c: Candidate = { slot: { key: "added", candidates: [def.id], regions: def.regions, base: 0 }, def, score: 0, confirmed: true, loadFactor: 1, setsDelta: 0, notes: [] };
+  const ex = buildPlannedExercise(c, input.history, input.storeId, { level: "none", regions: new Set() }, goalsOrDefault(input.settings.goals), prefsOrEmpty(input.settings.preferences), input.storeEquipment);
+  if (input.manual) ex.sets = ex.sets.map(({ plannedReps: _p, ...s }) => (void _p, s));
+  return ex;
 }

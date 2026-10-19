@@ -10,10 +10,11 @@ import { AddExerciseSheet } from "./AddExerciseSheet";
 import { RestTimerBar } from "@/components/timer/RestTimerBar";
 import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
-import { addCardio, addExercise, finalizeWorkout, moveItemTo, orderedItems, progressOf } from "@/lib/workout/edit";
+import { addCardio, addExercise, finalizeWorkout, insertExercise, moveItemTo, orderedItems, progressOf } from "@/lib/workout/edit";
 import { useLongPressReorder } from "./useLongPressReorder";
 import { useLiveQuery } from "dexie-react-hooks";
-import { listStoreEquipment, setStoreEquipment } from "@/lib/db/repo";
+import { listCompletedWorkouts, listStoreEquipment, setStoreEquipment } from "@/lib/db/repo";
+import { planSingleExercise } from "@/lib/planner";
 import { getExercise } from "@/lib/catalog/exercises";
 import { stepFor } from "@/lib/planner/progression";
 import { workoutStoreName } from "@/lib/catalog/stores";
@@ -41,6 +42,7 @@ export function ActiveWorkoutView() {
   // この店舗の器具ごとの重量の刻み
   const storeId = w?.storeId;
   const equipment = useLiveQuery(() => (storeId ? listStoreEquipment(storeId) : Promise.resolve([])), [storeId], []);
+  const history = useLiveQuery(() => listCompletedWorkouts(), [], []);
   const progress = useMemo(() => (w ? progressOf(w) : null), [w]);
   // 種目・有酸素のカードを長押しして上下に動かすと並べ替える
   const items = useMemo(() => (w ? orderedItems(w) : []), [w]);
@@ -226,7 +228,11 @@ export function ActiveWorkoutView() {
 
       {rest && settings && <RestTimerBar seconds={rest.sec} nonce={rest.nonce} sound={settings.sound} vibration={settings.vibration} onClose={() => setRest(null)} />}
 
-      <AddExerciseSheet open={showAdd} onClose={() => setShowAdd(false)} storeId={w.storeId} excludedIds={settings?.excludedExerciseIds} onAdd={(id) => mutate((x) => addExercise(x, id))} />
+      <AddExerciseSheet open={showAdd} onClose={() => setShowAdd(false)} storeId={w.storeId} excludedIds={settings?.excludedExerciseIds} onAdd={(id) => {
+          // 前回の記録と重量の進め方から重量・回数を入れて追加する（記録が無ければ空欄）
+          const ex = planSingleExercise(id, { history: history ?? [], storeId: w.storeId, storeEquipment: equipment, settings, manual: w.manual || !w.intake });
+          mutate((x) => (ex ? insertExercise(x, ex) : addExercise(x, id)));
+        }} />
 
       <ConfirmDialog
         open={confirmCancel}
