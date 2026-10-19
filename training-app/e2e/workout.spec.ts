@@ -528,3 +528,32 @@ test("有酸素のカードも長押しで種目の間へ並べ替えられる",
   await expect(page.getByTestId("progress")).toBeVisible();
   expect((await order()).indexOf("TM")).toBe(after.indexOf("TM"));
 });
+
+test("重量の刻みを店舗ごとに変えられ、全セット終えた次の回は新しい重量に挑戦の注意書きが出る", async ({ page }) => {
+  await startWorkout(page);
+  const lp = page.locator('[data-testid="exercise-card"][data-exercise-id="leg_press"]');
+  await expect(lp).toBeVisible();
+  if (!(await lp.getByTestId("form-toggle").isVisible())) await lp.locator("header").click();
+  // この店舗のレッグプレスの刻みを 2.5kg にする → 重量の ± も 2.5kg 刻みになる
+  await lp.getByTestId("form-toggle").click();
+  await lp.getByLabel("重量の刻み", { exact: true }).fill("2.5");
+  await lp.getByLabel("重量の刻み", { exact: true }).press("Tab");
+  await expect(lp.getByRole("button", { name: "重量を2.5増やす" }).first()).toBeVisible();
+  // 予定のセットを全部終えて保存
+  const n = await lp.getByTestId("set-row").count();
+  for (let i = 1; i <= n; i++) {
+    await lp.getByRole("button", { name: `セット${i}を完了にする` }).click();
+    const close = page.getByRole("button", { name: "休憩タイマーを閉じる" });
+    if (await close.isVisible()) await close.click();
+  }
+  await page.getByTestId("finish").click();
+  await page.getByTestId("finish-confirm").click();
+  await expect(page).toHaveURL(/\/history\//);
+
+  // 次の回：前回 50kg を全セット達成 → 2.5kg 刻みで 52.5kg に挑戦。注意書きが出る
+  await startWorkout(page);
+  const next = page.locator('[data-testid="exercise-card"][data-exercise-id="leg_press"]');
+  if (!(await next.getByTestId("form-toggle").isVisible())) await next.locator("header").click();
+  await expect(next.getByTestId("set-notice").first()).toContainText("新しい重量に挑戦（前回 50kg → 52.5kg）");
+  await expect(next.getByLabel("重量", { exact: true }).last()).toHaveValue("52.5");
+});

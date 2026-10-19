@@ -108,6 +108,8 @@ export interface StoreEquipment {
   available: boolean;
   /** 利用実績が確認できている（推測ではない） */
   confirmed: boolean;
+  /** この店舗のこの器具で重量を変えられる刻み(kg)。未設定なら種目の標準 */
+  stepKg?: number;
   note?: string;
   updatedAt: string;
 }
@@ -124,8 +126,10 @@ export interface WorkoutSet {
   id: string;
   /** 目標重量(kg)。片手種目は片手あたり */
   weight?: number;
-  /** 目標回数 */
+  /** 目標回数（実際に行う回数。届かなかったときは下げて記録する） */
   reps?: number;
+  /** メニュー作成時の目標回数（達成したかの判定に使う） */
+  plannedReps?: number;
   /** 実際の回数（未入力なら undefined。目標達成とみなさない） */
   actualReps?: number;
   /** 時間種目(プランク等)の目標秒数 */
@@ -366,6 +370,10 @@ export interface MenuPreferences {
   dislikedExerciseIds?: string[];
   /** 普段から気をつけたいケガ・痛み（毎回の除外判定に使う） */
   chronicPain?: string;
+  /** 体格（任意。初めての種目の重量の目安と、重量の上げ方に使う。共有はしない） */
+  sex?: "male" | "female" | "unspecified";
+  bodyWeightKg?: number;
+  age?: number;
   notes?: PreferenceNote[];
 }
 

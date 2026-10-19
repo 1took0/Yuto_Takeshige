@@ -9,6 +9,7 @@ import { formatJaDate } from "@/lib/date/trainingDay";
 import { addSet, isExerciseDone, removeExercise, removeSet, setExcluded, toggleSetCompleted, updateExercise, updateSet } from "@/lib/workout/edit";
 import { GripIcon, TrashIcon } from "@/components/ui/Icons";
 import { SetRow } from "./SetRow";
+import { NumberField } from "@/components/ui/NumberField";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 
@@ -24,13 +25,31 @@ interface Props {
   onStartRest?: (sec: number | null) => void;
   /** 履歴編集モード（スキップなどは非表示） */
   editOnly?: boolean;
+  /** この店舗での重量の刻み(kg)と、刻みを変えたときの保存先 */
+  step?: number;
+  onChangeStep?: (stepKg: number) => void;
   /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
   dragItem?: { ref: (el: HTMLElement | null) => void; style?: React.CSSProperties; "data-dragging"?: string };
   dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
 }
 
-export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onStartRest, editOnly, dragItem, dragHandle }: Props) {
+export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onStartRest, editOnly, dragItem, dragHandle, step, onChangeStep }: Props) {
   const def = getExercise(e.exerciseId);
+  const weighted = def?.loadType === "weight" || def?.loadType === "assist";
+  // 前回（同じ店舗）より重い重量・多い回数に挑戦するセットには注意書きを出す
+  const prevLast = e.weightReference === "same_store" ? e.previous?.sets[e.previous.sets.length - 1] : undefined;
+  const prevW = prevLast ? (prevLast.left?.weight ?? prevLast.weight) : undefined;
+  const prevR = prevLast ? (prevLast.left?.reps ?? prevLast.reps) : undefined;
+  const noticeFor = (s: WorkoutSet): string | undefined => {
+    if (s.completed || s.excluded || !weighted) return undefined;
+    const w = s.left?.weight ?? s.weight;
+    const r = s.left?.reps ?? s.reps;
+    if (prevW === undefined || w === undefined) return undefined;
+    const harder = def?.loadType === "assist" ? w < prevW : w > prevW;
+    if (harder) return `新しい重量に挑戦（前回 ${prevW}kg → ${w}kg）。フォームが崩れる・目標回数に届かないときは無理をせず前回の重量に戻してください`;
+    if (w === prevW && prevR !== undefined && r !== undefined && r > prevR) return `回数に挑戦（前回 ${prevR}回 → ${r}回）。届かなければ、できた回数に直してからチェックしてください`;
+    return undefined;
+  };
   const toast = useToast();
   const [showInfo, setShowInfo] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ set: WorkoutSet } | null>(null);
@@ -118,6 +137,8 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                 index={i}
                 set={s}
                 def={def}
+                step={step}
+                notice={noticeFor(s)}
                 onChange={(patch) => mutate((w) => updateSet(w, e.id, s.id, patch))}
                 onToggle={() => {
                   mutate((w) => toggleSetCompleted(w, e.id, s.id));
@@ -153,6 +174,13 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                   <InfoList title="フォーム" items={def.form} />
                   <InfoList title="シート・パッド設定" items={def.setup} />
                   <InfoList title="注意点" items={def.cautions} />
+                  {weighted && onChangeStep && (
+                    <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      この店舗の重量の刻み
+                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => v && v > 0 && onChangeStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-32" />
+                      <span className="w-full text-[11px]">{equipmentName(def.equipmentId)}で何kgずつ変えられるか。次回のメニュー作成と ± ボタンに使います</span>
+                    </label>
+                  )}
                 </>
               )}
               <input

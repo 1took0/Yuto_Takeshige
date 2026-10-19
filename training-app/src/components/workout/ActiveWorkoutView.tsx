@@ -12,6 +12,10 @@ import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
 import { addCardio, addExercise, finalizeWorkout, moveItemTo, orderedItems, progressOf } from "@/lib/workout/edit";
 import { useLongPressReorder } from "./useLongPressReorder";
+import { useLiveQuery } from "dexie-react-hooks";
+import { listStoreEquipment, setStoreEquipment } from "@/lib/db/repo";
+import { getExercise } from "@/lib/catalog/exercises";
+import { stepFor } from "@/lib/planner/progression";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { clearTimer } from "@/hooks/useTimer";
@@ -34,6 +38,9 @@ export function ActiveWorkoutView() {
   const [showCoach, setShowCoach] = useState(false);
 
   const focusedId = w?.ui?.focusedExerciseId ?? null;
+  // この店舗の器具ごとの重量の刻み
+  const storeId = w?.storeId;
+  const equipment = useLiveQuery(() => (storeId ? listStoreEquipment(storeId) : Promise.resolve([])), [storeId], []);
   const progress = useMemo(() => (w ? progressOf(w) : null), [w]);
   // 種目・有酸素のカードを長押しして上下に動かすと並べ替える
   const items = useMemo(() => (w ? orderedItems(w) : []), [w]);
@@ -72,6 +79,10 @@ export function ActiveWorkoutView() {
     );
   }
 
+  const stepOf = (exerciseId: string) => {
+    const def = getExercise(exerciseId);
+    return def ? stepFor(def, w.storeId, equipment) : undefined;
+  };
   // 集中モードではその種目だけ、ふだんは種目と有酸素を並び順どおりに表示
   const visibleItems = focusedId ? items.filter((it) => it.id === focusedId) : items;
   const toggleCollapse = (id: string) => setCollapsed({ ...collapsed, [id]: !collapsed[id] });
@@ -142,6 +153,11 @@ export function ActiveWorkoutView() {
             index={idx}
             dragItem={focusedId ? undefined : reorder.itemProps(e.id)}
             dragHandle={focusedId ? undefined : reorder.handleProps(e.id)}
+            step={stepOf(e.exerciseId)}
+            onChangeStep={(v) => {
+              const def = getExercise(e.exerciseId);
+              if (def) void setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v });
+            }}
             mutate={mutate}
             collapsed={!!collapsed[e.id] && !focusedId}
             focused={focusedId === e.id}

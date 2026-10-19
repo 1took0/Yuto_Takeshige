@@ -119,15 +119,18 @@ export interface NewExerciseOptions {
   weightReference?: WorkoutExercise["weightReference"];
   /** 1セット目を軽くする（ウォームアップ） */
   rampFirst?: boolean;
+  /** この店舗での重量の刻み（未指定なら種目の標準） */
+  step?: number;
 }
 
 export function buildExercise(def: ExerciseDef, opts: NewExerciseOptions = {}): WorkoutExercise {
   const n = Math.max(1, opts.sets ?? def.defaultSets);
+  const step = opts.step ?? def.increment;
   const sets: WorkoutSet[] = [];
   for (let i = 0; i < n; i++) {
     let weight = opts.weight;
-    if (weight !== undefined && opts.rampFirst && i === 0 && n > 1 && def.increment > 0) {
-      weight = Math.max(def.increment, weight - def.increment);
+    if (weight !== undefined && opts.rampFirst && i === 0 && n > 1 && step > 0) {
+      weight = Math.max(step, weight - step);
     }
     const s: WorkoutSet = {
       id: newId("set"),
@@ -138,6 +141,8 @@ export function buildExercise(def: ExerciseDef, opts: NewExerciseOptions = {}): 
       s.seconds = opts.seconds ?? def.defaultSeconds;
     } else {
       s.reps = opts.reps ?? def.defaultReps;
+      // メニュー作成時の目標回数を残す（届かずに回数を下げて記録したときに「未達成」と分かるように）
+      s.plannedReps = s.reps;
       if (def.loadType !== "reps") s.weight = weight;
     }
     if (def.unilateral && def.loadType !== "time") {

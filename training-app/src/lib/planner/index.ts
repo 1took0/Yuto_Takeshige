@@ -7,8 +7,9 @@ import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
+import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
-import { allTargetsReported, daysSince, doneInLastN, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
+import { daysSince, doneInLastN, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
 
 /**
  * ルールベースのメニュー生成
@@ -73,11 +74,6 @@ const FOCUS_REGIONS: Record<FocusArea, BodyRegion[] | null> = {
   arms_shoulders: ["arms", "shoulders"],
   abs_core: ["abs", "lower_back"],
 };
-
-function roundToIncrement(v: number, inc: number): number {
-  if (!inc) return Math.round(v);
-  return Math.max(inc, Math.round(v / inc) * inc);
-}
 
 interface Budget {
   totalMin: number;
@@ -332,7 +328,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
 
   // ---- 重量・回数の決定 ----
-  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs));
+  const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs, storeEquipment));
 
   // ---- 有酸素 ----
   const cardio = [];
@@ -387,15 +383,27 @@ export function preferenceSummary(prefs: MenuPreferences, goals: Goals): string[
   return out;
 }
 
-export function buildPlannedExercise(c: Candidate, history: Workout[], store: IntakeAnswers["storeId"], sore: SorenessInfo, goals: Goals = goalsOrDefault(undefined), prefs: MenuPreferences = {}): WorkoutExercise {
+export function buildPlannedExercise(
+  c: Candidate,
+  history: Workout[],
+  store: IntakeAnswers["storeId"],
+  sore: SorenessInfo,
+  goals: Goals = goalsOrDefault(undefined),
+  prefs: MenuPreferences = {},
+  storeEquipment: StoreEquipment[] = [],
+): WorkoutExercise {
   const def = c.def;
   const sets = Math.max(2, def.defaultSets + c.setsDelta);
+  const step = stepFor(def, store, storeEquipment);
   const same = exerciseHistory(history, def.id, store);
   const any = exerciseHistory(history, def.id);
   const ref: ExerciseHistoryEntry | undefined = same[0] ?? any[0];
   const isOtherStore = !same[0] && !!any[0];
   const notes = [...c.notes];
+  const profile = progressionProfile(def, prefs, goals);
+  const [lo] = profile.repRange;
   let weight: number | undefined;
+  let reps: number | undefined;
   let seconds: number | undefined;
   let weightReference: WorkoutExercise["weightReference"] = "none";
 
@@ -404,35 +412,41 @@ export function buildPlannedExercise(c: Candidate, history: Workout[], store: In
     if (ref && seconds && allSecondsHeld(ref)) {
       notes.push(`前回${seconds}秒を保持できていれば +10秒に挑戦`);
     }
-  } else if (def.loadType === "weight" || def.loadType === "assist") {
-    if (ref) {
-      const base = workingWeight(ref.exercise);
-      if (base !== undefined) {
-        weightReference = isOtherStore ? "other_store" : "same_store";
-        let w = base;
-        if (def.loadType === "assist") {
-          // 補助重量は小さいほど難しい。達成報告があれば -5
-          w = allTargetsReported(ref.exercise) ? Math.max(5, base - def.increment) : base;
-        } else if (allTargetsReported(ref.exercise)) {
-          w = base + def.increment;
-          notes.push(`前回は全セットで目標回数を達成 → +${def.increment}kg`);
-        } else {
-          const hard = ref.exercise.sets.some((s) => s.feel === "hard");
-          if (hard) notes.push("前回「きつい」との記録があるため据え置き");
-          else notes.push("前回の実回数が未入力のため重量は据え置き（達成していれば次回+）");
-        }
-        if (isOtherStore) {
-          w = Math.max(def.increment, w - def.increment);
-          notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
-        }
-        w = roundToIncrement(w * c.loadFactor, def.increment || 1);
-        weight = w;
-      }
+  } else if (def.loadType === "reps") {
+    // 自重の回数種目：全セット達成したら回数を+1（20回まで）
+    const last = same[0] ? toPastSession(same[0].exercise) : undefined;
+    reps = last?.reps ?? def.defaultReps;
+    if (last?.outcome.success && reps !== undefined && reps < 20) {
+      reps += 1;
+      notes.push("前回は全セット達成 → 回数を+1");
+    } else if (last && !last.outcome.success) notes.push("前回は全セット達成していないため回数は据え置き");
+  } else if (same[0] && workingWeight(same[0].exercise) !== undefined) {
+    // 同じ店舗の記録から、体格・経験・種目に合わせたペースで進める
+    weightReference = "same_store";
+    const next = decideNextLoad(def, same.map((h) => toPastSession(h.exercise)), step, profile);
+    weight = next.weight;
+    reps = next.reps;
+    notes.push(...next.notes);
+  } else if (isOtherStore && ref && workingWeight(ref.exercise) !== undefined) {
+    // 別店舗の記録は参考値：同じ重量とは限らないので1段階軽めから
+    weightReference = "other_store";
+    const base = workingWeight(ref.exercise)!;
+    weight = def.loadType === "assist" ? roundToStep(base + step, step) : Math.max(step, roundToStep(base - step, step));
+    reps = toPastSession(ref.exercise).reps;
+    notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
+  } else {
+    // 初めての種目：体重が分かれば目安の重量を出す
+    const est = estimateStartWeight(def, prefs, step);
+    if (est !== undefined) {
+      weight = est;
+      notes.push(`体重${prefs.bodyWeightKg}kg・経験から見た目安の重量です。最初のセットで余裕を確認し、軽すぎれば上げてください`);
     } else {
       notes.push(isNovice(prefs) ? "初回のため、フォームを優先して余裕を持って10回以上できる重量から始めましょう" : "初回のため軽めの重量で確認してから調整してください");
     }
   }
-  // 片手種目は左右差を考慮（左が弱いため左の重量に合わせる）
+  if (weight !== undefined) weight = roundToStep(weight * c.loadFactor, step);
+
+  // 片手種目は左右差を考慮（弱い側に合わせる）
   if (def.unilateral && def.loadType === "weight") {
     if (goals.weakSide === "none") notes.push("左右同じ重量・回数で行う");
     else {
@@ -441,12 +455,20 @@ export function buildPlannedExercise(c: Candidate, history: Workout[], store: In
       notes.push(`弱い${weak}から始め、${strong}は${weak}と同じ重量・回数で揃える`);
     }
   }
-  // 筋力重視なら複合種目の目標回数を少なめに
-  let reps = strengthFocused(goals) && def.loadType === "weight" && def.defaultReps && def.priority >= 95 ? 8 : undefined;
-  if (reps) notes.push("筋力向上重視のため8回前後の重量で");
-  else if (prefs.intensity === "light" && def.loadType === "weight" && def.defaultReps) {
-    reps = def.defaultReps + 2;
-    notes.push("軽めの希望のため、重量は控えめに回数を多めに");
+  // 回数：記録が無いときは目的に合わせた回数から
+  if (def.loadType === "weight" || def.loadType === "assist") {
+    if (reps === undefined) {
+      if (strengthFocused(goals) && def.defaultReps && def.priority >= 95) {
+        reps = 8;
+        notes.push("筋力向上重視のため8回前後の重量で");
+      } else if (prefs.intensity === "light" && def.defaultReps) {
+        reps = def.defaultReps + 2;
+        notes.push("軽めの希望のため、重量は控えめに回数を多めに");
+      }
+    } else {
+      reps = Math.min(allowedReps(profile)[1], Math.max(lo, reps));
+      if (strengthFocused(goals) && def.priority >= 95 && reps <= 8) notes.push("筋力向上重視のため8回前後の重量で");
+    }
   }
   if (prefs.intensity === "hard" && def.loadType === "weight") notes.push("最終セットは限界近くまで");
 
@@ -455,14 +477,15 @@ export function buildPlannedExercise(c: Candidate, history: Workout[], store: In
     reps,
     weight,
     seconds,
+    step,
     weightReference,
     rampFirst: weight !== undefined && weight >= 20 && def.loadType === "weight",
     rationale: notes.join("。"),
   });
   if (ref) ex.previous = toPrevious(ref);
   // 強い疲労のときはここに来ないが、中程度なら1セット目をさらに軽く
-  if (sore.level === "moderate" && ex.sets[0]?.weight !== undefined && def.increment) {
-    ex.sets[0] = { ...ex.sets[0], weight: Math.max(def.increment, ex.sets[0].weight! - def.increment) };
+  if (sore.level === "moderate" && ex.sets[0]?.weight !== undefined) {
+    ex.sets[0] = { ...ex.sets[0], weight: Math.max(step, ex.sets[0].weight! - step) };
   }
   return ex;
 }

@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/Toast";
 import { disableSharing } from "@/lib/share/client";
 import { musclesLabel } from "@/lib/catalog/muscles";
 import { ChipGroup } from "@/components/ui/Chips";
+import { NumberField } from "@/components/ui/NumberField";
 
 export function SettingsView() {
   const { settings, update } = useSettings();
@@ -28,6 +29,7 @@ export function SettingsView() {
   const [storeSel, setStore] = useState<StoreId>("ichijoji");
   const stores = useStores();
   const allEx = useExercises();
+  const defaultStep = defaultSteps(allEx);
   const store = stores.some((s) => s.id === storeSel) ? storeSel : "ichijoji";
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
@@ -109,7 +111,7 @@ export function SettingsView() {
 
       <StoreManager onAdded={(id) => setStore(id)} />
 
-      <Section title="店舗の器具" hint="「ない」にすると次回以降のメニューから自動的に除外されます。未確認は推測なので、実際に確認したら更新してください。">
+      <Section title="店舗の器具" hint="「ない」にすると次回以降のメニューから自動的に除外されます。未確認は推測なので、実際に確認したら更新してください。「刻み」はその器具で何kgずつ重量を変えられるかで、メニューの重量と ± ボタンに使います。">
         <div className="mb-2 flex flex-wrap gap-1">
           {stores.map((s) => (
             <button key={s.id} type="button" className="chip flex-1 whitespace-nowrap" data-selected={store === s.id} onClick={() => setStore(s.id)}>
@@ -125,6 +127,12 @@ export function SettingsView() {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{eq.name}</div>
                   {row?.note && <div className="text-xs text-muted">{row.note}</div>}
+                  {defaultStep[eq.id] !== undefined && state !== "no" && (
+                    <label className="mt-1 flex items-center gap-1 text-xs text-muted">
+                      刻み
+                      <NumberField label={`${eq.name}の重量の刻み`} unit="kg" value={row?.stepKg ?? defaultStep[eq.id]} onChange={(v) => v && v > 0 && setStoreEquipment(store, eq.id, { stepKg: v })} step={0.5} min={0.5} max={20} size="sm" className="w-28" />
+                    </label>
+                  )}
                 </div>
                 <div className="flex gap-1" role="radiogroup" aria-label={`${eq.name}の有無`}>
                   <button type="button" role="radio" aria-checked={state === "yes"} className="chip min-h-9 px-3 py-1 text-xs" data-selected={state === "yes"} onClick={() => setStoreEquipment(store, eq.id, { available: true, confirmed: true })}>
@@ -249,6 +257,16 @@ export function SettingsView() {
   );
 }
 
+/** 器具ごとの標準の刻み（その器具を使う重量種目のうち最小の刻み） */
+function defaultSteps(exercises: ReturnType<typeof useExercises>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const e of exercises) {
+    if ((e.loadType !== "weight" && e.loadType !== "assist") || !(e.increment > 0)) continue;
+    out[e.equipmentId] = Math.min(out[e.equipmentId] ?? Infinity, e.increment);
+  }
+  return out;
+}
+
 const REST_OPTIONS: (number | null)[] = [null, 30, 45, 60, 90, 120, 150, 180];
 
 function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPreferences }) {
@@ -256,6 +274,7 @@ function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPrefere
   if (prefs.experience) rows.push(["経験", EXPERIENCE_LABEL[prefs.experience]]);
   if (prefs.timeLimitMin !== undefined) rows.push(["時間", prefs.timeLimitMin === null ? "制限なし" : `${prefs.timeLimitMin}分`]);
   if (prefs.cardio) rows.push(["有酸素", CARDIO_CHOICE_LABEL[prefs.cardio]]);
+  if (prefs.bodyWeightKg || prefs.age) rows.push(["体格", [prefs.sex === "male" ? "男性" : prefs.sex === "female" ? "女性" : "", prefs.bodyWeightKg ? `${prefs.bodyWeightKg}kg` : "", prefs.age ? `${prefs.age}歳` : ""].filter(Boolean).join("・")]);
   const applied = preferenceSummary(prefs, goals);
   const notes = prefs.notes ?? [];
   if (!rows.length && !applied.length && !notes.length) return <p className="text-sm text-muted">まだ設定されていません。</p>;

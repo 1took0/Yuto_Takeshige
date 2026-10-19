@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { BodyRegion, CardioChoice, EquipmentStyle, Experience, Goals, Intensity, MenuPreferences, PreferenceNote } from "@/lib/types";
 import { ChipGroup, MultiChipGroup } from "@/components/ui/Chips";
+import { NumberField } from "@/components/ui/NumberField";
 import { REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { goalsOrDefault } from "@/lib/goals";
 import { applyWishOps, describeWishOp, CARDIO_CHOICE_LABEL, EQUIPMENT_STYLE_LABEL, EXPERIENCE_LABEL, INTENSITY_LABEL, TIME_OPTIONS } from "@/lib/preferences";
@@ -22,6 +23,9 @@ interface FormState {
   disliked: string[];
   chronicPain: string;
   wish: string;
+  sex: NonNullable<MenuPreferences["sex"]>;
+  bodyWeightKg?: number;
+  age?: number;
 }
 
 /**
@@ -58,6 +62,9 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
         disliked: p.dislikedExerciseIds ?? [],
         chronicPain: p.chronicPain ?? "",
         wish: "",
+        sex: p.sex ?? "unspecified",
+        bodyWeightKg: p.bodyWeightKg,
+        age: p.age,
       });
     });
     return () => {
@@ -94,6 +101,9 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
           lessRegions: form.lessRegions,
           dislikedExerciseIds: form.disliked,
           chronicPain: form.chronicPain.trim() || undefined,
+          sex: form.sex,
+          bodyWeightKg: form.bodyWeightKg,
+          age: form.age,
         };
         // 自由記述の希望も同じように反映する
         if (wishOps.length || form.wish.trim()) {
@@ -128,6 +138,26 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
 
       <Field label="筋トレの経験">
         <ChipGroup label="筋トレの経験" options={(Object.keys(EXPERIENCE_LABEL) as Experience[]).map((k) => ({ value: k, label: EXPERIENCE_LABEL[k] }))} value={form.experience} onChange={set("experience")} columns={4} />
+      </Field>
+      <Field label="体格（任意）">
+        <div className="space-y-2">
+          <ChipGroup
+            label="性別"
+            options={[
+              { value: "male" as const, label: "男性" },
+              { value: "female" as const, label: "女性" },
+              { value: "unspecified" as const, label: "答えない" },
+            ]}
+            value={form.sex}
+            onChange={set("sex")}
+            columns={3}
+          />
+          <div className="flex flex-wrap gap-2">
+            <NumberField label="体重" unit="kg" value={form.bodyWeightKg} onChange={(v) => set("bodyWeightKg")(v)} step={1} min={25} max={250} size="sm" className="w-36" placeholder="未入力" />
+            <NumberField label="年齢" unit="歳" value={form.age} onChange={(v) => set("age")(v)} step={1} min={10} max={100} size="sm" className="w-32" placeholder="未入力" />
+          </div>
+          <p className="text-[11px] text-muted">初めての種目の重量の目安と、重量を上げるペースに使います。この端末の中だけに保存し、共有しません。</p>
+        </div>
       </Field>
       <Field label="1回のトレーニング時間">
         <ChipGroup label="1回のトレーニング時間" options={TIME_OPTIONS} value={form.timeLimit} onChange={set("timeLimit")} columns={3} />

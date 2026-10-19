@@ -11,13 +11,17 @@ interface Props {
   onToggle: () => void;
   onRemove: () => void;
   onExclude: (excluded: boolean) => void;
+  /** この店舗での重量の刻み(kg) */
+  step?: number;
+  /** セットの下に出す注意書き（新しい重量への挑戦など） */
+  notice?: string;
 }
 
-export function SetRow({ index, set, def, onChange, onToggle, onRemove, onExclude }: Props) {
+export function SetRow({ index, set, def, onChange, onToggle, onRemove, onExclude, step: stepProp, notice }: Props) {
   const isTime = def?.loadType === "time";
   const isRepsOnly = def?.loadType === "reps";
   const unilateral = !!def?.unilateral && !isTime;
-  const step = def?.increment && def.increment > 0 ? def.increment : 1;
+  const step = stepProp && stepProp > 0 ? stepProp : def?.increment && def.increment > 0 ? def.increment : 1;
 
   return (
     <div className={`rounded-xl border border-border p-2 ${set.excluded ? "opacity-50" : ""} ${set.completed ? "bg-success-soft/60" : "bg-card"}`} data-testid="set-row">
@@ -60,6 +64,11 @@ export function SetRow({ index, set, def, onChange, onToggle, onRemove, onExclud
         </div>
         <SetMenu set={set} onRemove={onRemove} onExclude={onExclude} />
       </div>
+      {notice && (
+        <p className="mt-1.5 rounded-lg bg-warn-soft px-2 py-1 text-[11px] text-warn" data-testid="set-notice">
+          ⚠ {notice}
+        </p>
+      )}
     </div>
   );
 }

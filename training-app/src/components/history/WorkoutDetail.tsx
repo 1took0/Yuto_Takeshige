@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { deleteWorkout, getWorkout, saveWorkout } from "@/lib/db/repo";
+import { deleteWorkout, getWorkout, listStoreEquipment, saveWorkout, setStoreEquipment } from "@/lib/db/repo";
 import type { Workout } from "@/lib/types";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { useStores } from "@/hooks/useSettings";
@@ -14,6 +14,8 @@ import { AddExerciseSheet } from "@/components/workout/AddExerciseSheet";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { addExercise, moveItemTo, orderedItems } from "@/lib/workout/edit";
 import { useLongPressReorder } from "@/components/workout/useLongPressReorder";
+import { getExercise } from "@/lib/catalog/exercises";
+import { stepFor } from "@/lib/planner/progression";
 import { countedSets } from "@/lib/planner/history";
 import { useToast } from "@/components/ui/Toast";
 import { DurationEditor } from "@/components/workout/DurationEditor";
@@ -54,6 +56,8 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
     [],
   );
   // 編集中は種目・有酸素のカードを長押しして上下に動かすと並べ替える
+  const equipmentStore = draft?.storeId ?? fromDb?.storeId;
+  const equipment = useLiveQuery(() => (equipmentStore ? listStoreEquipment(equipmentStore) : Promise.resolve([])), [equipmentStore], []);
   const reorder = useLongPressReorder(draft ? orderedItems(draft).map((it) => it.id) : [], (itemId, to) => mutate((x) => moveItemTo(x, itemId, to)), editing);
 
   if (fromDb === undefined && !draft) return <p className="py-10 text-center text-muted">読み込み中…</p>;
@@ -134,7 +138,8 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
             }
             const i = w.exercises.findIndex((x) => x.id === it.id);
             const e = w.exercises[i];
-            return e ? <ExerciseCard key={e.id} exercise={e} index={i} dragItem={reorder.itemProps(e.id)} dragHandle={reorder.handleProps(e.id)} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly /> : null;
+            const def = getExercise(e?.exerciseId ?? "");
+            return e ? <ExerciseCard key={e.id} exercise={e} index={i} step={def ? stepFor(def, w.storeId, equipment) : undefined} onChangeStep={(v) => def && void setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v })} dragItem={reorder.itemProps(e.id)} dragHandle={reorder.handleProps(e.id)} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly /> : null;
           })}
           <button type="button" className="btn-secondary w-full" onClick={() => setShowAdd(true)}>
             ＋ 種目を追加

@@ -121,7 +121,7 @@ export async function listStoreEquipment(storeId?: StoreId): Promise<StoreEquipm
   return db().storeEquipment.toArray();
 }
 
-export async function setStoreEquipment(storeId: StoreId, equipmentId: string, patch: Partial<Pick<StoreEquipment, "available" | "confirmed" | "note">>): Promise<void> {
+export async function setStoreEquipment(storeId: StoreId, equipmentId: string, patch: Partial<Pick<StoreEquipment, "available" | "confirmed" | "note" | "stepKg">>): Promise<void> {
   const key = `${storeId}:${equipmentId}`;
   const cur = await db().storeEquipment.get(key);
   await db().storeEquipment.put({
@@ -130,6 +130,7 @@ export async function setStoreEquipment(storeId: StoreId, equipmentId: string, p
     equipmentId,
     available: cur?.available ?? true,
     confirmed: cur?.confirmed ?? false,
+    stepKg: cur?.stepKg,
     note: cur?.note,
     ...patch,
     updatedAt: new Date().toISOString(),

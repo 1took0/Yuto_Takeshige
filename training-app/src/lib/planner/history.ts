@@ -1,4 +1,4 @@
-import type { MuscleGroup, PreviousPerformance, StoreId, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
+import type { MuscleGroup, PreviousPerformance, SideRecord, StoreId, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { diffDays } from "@/lib/date/trainingDay";
 import { getExercise } from "@/lib/catalog/exercises";
 
@@ -51,11 +51,53 @@ export function workingSeconds(e: WorkoutExercise): number | undefined {
   return sets[sets.length - 1].actualSeconds ?? sets[sets.length - 1].seconds;
 }
 
-/** 全セットで実回数が報告され、目標を達成しているか。未報告があれば false（達成とみなさない） */
+/** 前回の結果（重量を上げてよいかの判断に使う） */
+export interface SessionOutcome {
+  /** 予定したセットをすべて完了した（途中でやめた・未実施として外したセットが無い） */
+  allDone: boolean;
+  /** すべて完了し、どのセットも目標回数に届いた */
+  success: boolean;
+  /** 完了したセットのうち、目標回数に届かなかったものがある */
+  missed: boolean;
+  /** 実回数の記録がない（取り込みデータなど）。達成とはみなさない */
+  unreported: boolean;
+}
+
+function setTarget(s: WorkoutSet, side?: SideRecord): number | undefined {
+  return s.plannedReps ?? side?.reps ?? s.reps;
+}
+
+function setActuals(s: WorkoutSet): { actual: number | undefined; target: number | undefined }[] {
+  if (s.left || s.right) {
+    return [s.left, s.right].filter((x): x is SideRecord => !!x).map((side) => ({ actual: side.actualReps ?? s.actualReps, target: setTarget(s, side) }));
+  }
+  return [{ actual: s.actualReps, target: setTarget(s) }];
+}
+
+/** 種目1回分の結果。時間種目は秒数で判定する */
+export function sessionOutcome(e: WorkoutExercise): SessionOutcome {
+  const sets = e.sets;
+  const done = sets.filter((s) => s.completed && !s.excluded);
+  const allDone = sets.length > 0 && done.length === sets.length;
+  let unreported = false;
+  let missed = false;
+  for (const s of done) {
+    if (s.seconds !== undefined && s.reps === undefined) {
+      if (s.actualSeconds === undefined) unreported = true;
+      else if (s.actualSeconds < (s.seconds ?? 0)) missed = true;
+      continue;
+    }
+    for (const { actual, target } of setActuals(s)) {
+      if (typeof actual !== "number" || typeof target !== "number") unreported = true;
+      else if (actual < target) missed = true;
+    }
+  }
+  return { allDone, success: allDone && !missed && !unreported, missed, unreported };
+}
+
+/** 予定したセットをすべて完了し、全セットで目標回数を達成したか（未報告や途中でやめたセットがあれば false） */
 export function allTargetsReported(e: WorkoutExercise): boolean {
-  const sets = countedSets(e);
-  if (!sets.length) return false;
-  return sets.every((s) => typeof s.actualReps === "number" && typeof s.reps === "number" && s.actualReps >= s.reps);
+  return sessionOutcome(e).success;
 }
 
 /** 筋群ごとの最終トレーニング日 */
