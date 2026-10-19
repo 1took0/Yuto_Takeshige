@@ -10,7 +10,7 @@ import { AddExerciseSheet } from "./AddExerciseSheet";
 import { RestTimerBar } from "@/components/timer/RestTimerBar";
 import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
-import { addCardio, addExercise, finalizeWorkout, moveExerciseTo, progressOf } from "@/lib/workout/edit";
+import { addCardio, addExercise, finalizeWorkout, moveItemTo, orderedItems, progressOf } from "@/lib/workout/edit";
 import { useLongPressReorder } from "./useLongPressReorder";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
@@ -35,9 +35,13 @@ export function ActiveWorkoutView() {
 
   const focusedId = w?.ui?.focusedExerciseId ?? null;
   const progress = useMemo(() => (w ? progressOf(w) : null), [w]);
-  // 種目カードを長押しして上下に動かすと並べ替える
-  const exerciseIds = useMemo(() => (w ? w.exercises.map((e) => e.id) : []), [w]);
-  const reorder = useLongPressReorder(exerciseIds, (id, to) => mutate((x) => moveExerciseTo(x, id, to)), !focusedId);
+  // 種目・有酸素のカードを長押しして上下に動かすと並べ替える
+  const items = useMemo(() => (w ? orderedItems(w) : []), [w]);
+  const reorder = useLongPressReorder(
+    items.map((it) => it.id),
+    (id, to) => mutate((x) => moveItemTo(x, id, to)),
+    !focusedId,
+  );
 
   // 初期状態：最初の未完了種目だけ開き、他は折りたたむ（ユーザー操作後は操作を優先）
   const collapsed = useMemo(() => {
@@ -68,7 +72,8 @@ export function ActiveWorkoutView() {
     );
   }
 
-  const visibleExercises = focusedId ? w.exercises.filter((e) => e.id === focusedId) : w.exercises;
+  // 集中モードではその種目だけ、ふだんは種目と有酸素を並び順どおりに表示
+  const visibleItems = focusedId ? items.filter((it) => it.id === focusedId) : items;
   const toggleCollapse = (id: string) => setCollapsed({ ...collapsed, [id]: !collapsed[id] });
   const setFocus = (id: string | null) => {
     mutate((x) => ({ ...x, ui: { ...x.ui, focusedExerciseId: id } }));
@@ -122,10 +127,14 @@ export function ActiveWorkoutView() {
         </button>
       )}
 
-      {!focusedId && w.cardio.filter((c) => c.role === "warmup").map((c) => <CardioCard key={c.id} entry={c} mutate={mutate} timerLink />)}
-
-      {visibleExercises.map((e) => {
-        const idx = w.exercises.findIndex((x) => x.id === e.id);
+      {visibleItems.map((it) => {
+        if (it.kind === "cardio") {
+          const c = w.cardio.find((x) => x.id === it.id);
+          return c ? <CardioCard key={c.id} entry={c} mutate={mutate} timerLink dragItem={reorder.itemProps(c.id)} dragHandle={reorder.handleProps(c.id)} /> : null;
+        }
+        const idx = w.exercises.findIndex((x) => x.id === it.id);
+        const e = w.exercises[idx];
+        if (!e) return null;
         return (
           <ExerciseCard
             key={e.id}
@@ -162,7 +171,6 @@ export function ActiveWorkoutView() {
           <button type="button" className="btn-secondary w-full" onClick={() => setShowAdd(true)} data-testid="add-exercise">
             ＋ 種目を追加
           </button>
-          {w.cardio.filter((c) => c.role === "main").map((c) => <CardioCard key={c.id} entry={c} mutate={mutate} timerLink />)}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="btn-secondary text-sm" onClick={() => mutate((x) => addCardio(x, "treadmill"))} data-testid="add-cardio-treadmill">
               ＋ 有酸素を追加（トレッドミル）

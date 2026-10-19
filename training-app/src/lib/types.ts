@@ -261,6 +261,8 @@ export interface Workout {
   intake?: IntakeAnswers;
   exercises: WorkoutExercise[];
   cardio: CardioEntry[];
+  /** 種目と有酸素を合わせた表示順（id の並び）。未設定ならウォームアップ → 種目 → 有酸素 */
+  itemOrder?: string[];
   status: WorkoutStatus;
   source: "app" | "import";
   /** 折りたたみ等のUI状態 */

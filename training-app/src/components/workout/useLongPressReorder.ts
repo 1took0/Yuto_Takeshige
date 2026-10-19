@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /** 長押しと判定するまでの時間と、それまでに動いてよい距離（超えたらスクロールとみなす） */
 const HOLD_MS = 350;
 const SLOP_PX = 8;
-const EDGE_PX = 80;
+/** 画面の上端・下端からこの距離に指があると自動でスクロールする（上は固定ヘッダーの分だけ広め） */
+const EDGE_TOP_PX = 130;
+const EDGE_BOTTOM_PX = 110;
 
 interface DragState {
   id: string;
@@ -22,6 +24,13 @@ interface DragState {
   lastY: number;
 }
 
+/** 要素の画面上の上端（transform を含まない） */
+function layoutTopOf(el: HTMLElement): number {
+  const parent = el.offsetParent as HTMLElement | null;
+  const base = parent ? parent.getBoundingClientRect().top + parent.clientTop : -window.scrollY;
+  return base + el.offsetTop;
+}
+
 /**
  * 長押ししてから上下に動かすと並べ替える（Notion の行の移動のような操作）
  * - 長押しの前に指が動いたら通常のスクロールとして扱う
@@ -33,6 +42,7 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
   const onMoveRef = useRef(onMove);
   const st = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
+  const startAutoScroll = useRef<() => void>(() => {});
   const [drag, setDrag] = useState<{ id: string; dy: number } | null>(null);
 
   useEffect(() => {
@@ -50,20 +60,20 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
     if (!s?.active) return;
     const el = els.current.get(s.id);
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const layoutTop = rect.top - s.dy;
+    // 移動量（transform）を含まない、並び順どおりの位置
+    const layoutTop = layoutTopOf(el);
     const desiredTop = clientY - s.grab;
     s.dy = desiredTop - layoutTop;
     setDrag({ id: s.id, dy: s.dy });
     if (s.pending) return;
     const list = idsRef.current;
     const idx = list.indexOf(s.id);
-    const center = desiredTop + rect.height / 2;
+    // 指の位置が隣のカードの真ん中を越えたら入れ替える（開いていて背の高いカードでも同じ感覚で動かせる）
     const next = list[idx + 1] && els.current.get(list[idx + 1]);
     const prev = list[idx - 1] && els.current.get(list[idx - 1]);
     if (next) {
       const r = next.getBoundingClientRect();
-      if (center > r.top + r.height / 2) {
+      if (clientY > r.top + r.height / 2) {
         s.pending = true;
         onMoveRef.current(s.id, idx + 1);
         return;
@@ -71,7 +81,7 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
     }
     if (prev) {
       const r = prev.getBoundingClientRect();
-      if (center < r.top + r.height / 2) {
+      if (clientY < r.top + r.height / 2) {
         s.pending = true;
         onMoveRef.current(s.id, idx - 1);
       }
@@ -98,9 +108,26 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
         return;
       }
       s.lastY = e.clientY;
-      if (e.clientY < EDGE_PX) window.scrollBy(0, -12);
-      else if (e.clientY > window.innerHeight - EDGE_PX) window.scrollBy(0, 12);
       reposition(e.clientY);
+    };
+    // 指が画面の端にある間はスクロールし続ける（指を止めていても）
+    let raf = 0;
+    const tick = () => {
+      const s = st.current;
+      if (!s?.active) {
+        raf = 0;
+        return;
+      }
+      const bottom = window.innerHeight - EDGE_BOTTOM_PX;
+      const v = s.lastY < EDGE_TOP_PX ? -Math.ceil((EDGE_TOP_PX - s.lastY) / 6) - 2 : s.lastY > bottom ? Math.ceil((s.lastY - bottom) / 6) + 2 : 0;
+      if (v) {
+        window.scrollBy(0, v);
+        reposition(s.lastY);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    startAutoScroll.current = () => {
+      if (!raf) raf = requestAnimationFrame(tick);
     };
     // 並べ替え中はページのスクロールを止める
     const blockTouch = (e: TouchEvent) => {
@@ -116,6 +143,7 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
     window.addEventListener("touchmove", blockTouch, { passive: false });
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -149,9 +177,10 @@ export function useLongPressReorder(ids: string[], onMove: (id: string, toIndex:
       s.timer = setTimeout(() => {
         if (st.current !== s) return;
         s.active = true;
-        s.grab = s.startY - el.getBoundingClientRect().top;
+        s.grab = s.startY - layoutTopOf(el);
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(10);
         setDrag({ id, dy: 0 });
+        startAutoScroll.current();
       }, HOLD_MS);
       st.current = s;
     },

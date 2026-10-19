@@ -296,3 +296,53 @@ export function moveExerciseTo(w: Workout, exId: string, toIndex: number): Worko
   exercises.splice(to, 0, moved);
   return touch({ ...w, exercises });
 }
+
+export type WorkoutItem = { kind: "exercise"; id: string } | { kind: "cardio"; id: string };
+
+/**
+ * 種目と有酸素を合わせた表示順
+ * - 並べ替えたことがなければ、ウォームアップの有酸素 → 種目 → メインの有酸素
+ * - 後から追加した種目は最後の種目の後ろ、有酸素はウォームアップなら先頭・それ以外は末尾に入れる
+ */
+export function orderedItems(w: Workout): WorkoutItem[] {
+  const ex: WorkoutItem[] = w.exercises.map((e) => ({ kind: "exercise", id: e.id }));
+  const warm: WorkoutItem[] = w.cardio.filter((c) => c.role === "warmup").map((c) => ({ kind: "cardio", id: c.id }));
+  const main: WorkoutItem[] = w.cardio.filter((c) => c.role !== "warmup").map((c) => ({ kind: "cardio", id: c.id }));
+  const all = [...warm, ...ex, ...main];
+  if (!w.itemOrder?.length) return all;
+  const byId = new Map(all.map((it) => [it.id, it]));
+  const out: WorkoutItem[] = w.itemOrder.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
+  const placed = new Set(out.map((it) => it.id));
+  for (const it of all) {
+    if (placed.has(it.id)) continue;
+    if (it.kind === "exercise") {
+      let last = -1;
+      out.forEach((x, i) => x.kind === "exercise" && (last = i));
+      if (last >= 0) out.splice(last + 1, 0, it);
+      else {
+        const firstMain = out.findIndex((x) => x.kind === "cardio" && w.cardio.find((c) => c.id === x.id)?.role !== "warmup");
+        out.splice(firstMain >= 0 ? firstMain : out.length, 0, it);
+      }
+    } else if (warm.some((x) => x.id === it.id)) out.unshift(it);
+    else out.push(it);
+    placed.add(it.id);
+  }
+  // 種目どうしの順番は種目の並び（番号）に従い、有酸素との位置関係だけを itemOrder から取る
+  const slots = out.map((x, i) => (x.kind === "exercise" ? i : -1)).filter((i) => i >= 0);
+  slots.forEach((slot, k) => (out[slot] = ex[k]));
+  return out;
+}
+
+/** 種目・有酸素を任意の位置へ移動（長押しドラッグの並べ替え用）。種目の並び（番号）も合わせる */
+export function moveItemTo(w: Workout, id: string, toIndex: number): Workout {
+  const items = orderedItems(w).map((it) => it.id);
+  const from = items.indexOf(id);
+  if (from < 0) return w;
+  const to = Math.max(0, Math.min(items.length - 1, toIndex));
+  if (from === to) return w;
+  items.splice(from, 1);
+  items.splice(to, 0, id);
+  const pos = new Map(items.map((x, i) => [x, i]));
+  const exercises = [...w.exercises].sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0));
+  return touch({ ...w, exercises, itemOrder: items });
+}

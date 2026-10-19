@@ -501,3 +501,30 @@ test("休憩タイマー：設定した時間で始まり ±10秒で調整でき
   await card.getByRole("button", { name: `セット${setCount}を完了にする` }).click();
   await expect(timer).toHaveCount(0);
 });
+
+test("有酸素のカードも長押しで種目の間へ並べ替えられる", async ({ page }) => {
+  await startWorkout(page);
+  const order = async () =>
+    page.locator('[data-testid="exercise-card"], [data-testid="cardio-card"]').evaluateAll((els) => els.map((el) => (el.getAttribute("data-testid") === "cardio-card" ? (el.textContent?.includes("トレッドミル") ? "TM" : "BIKE") : "EX")));
+  const before = await order();
+  expect(before.at(-1)).toBe("TM");
+  const tm = page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" }).locator("header");
+  // トレッドミルを長押しして、1番目の種目の位置まで上へ動かす
+  await tm.scrollIntoViewIfNeeded();
+  const box = (await tm.boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y0 = box.y + box.height / 2;
+  await page.mouse.move(x, y0);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  // 指を画面の上端近くまで動かして止めると、自動でスクロールしながら上へ移動する
+  for (let i = 1; i <= 10; i++) await page.mouse.move(x, y0 + ((60 - y0) * i) / 10);
+  await expect.poll(async () => (await order()).indexOf("TM"), { timeout: 15_000 }).toBeLessThanOrEqual(1);
+  await page.mouse.up();
+  const after = await order();
+  expect(after.indexOf("TM")).toBeLessThanOrEqual(1);
+  // 再読み込みしても並び順が残る
+  await page.reload();
+  await expect(page.getByTestId("progress")).toBeVisible();
+  expect((await order()).indexOf("TM")).toBe(after.indexOf("TM"));
+});

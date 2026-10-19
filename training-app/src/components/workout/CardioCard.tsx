@@ -7,13 +7,16 @@ import { formatDuration } from "@/lib/date/trainingDay";
 import { planDistanceKm, planRunMin, planTotalMin } from "@/lib/planner/cardio";
 import { removeCardio } from "@/lib/workout/edit";
 import { ConfirmDialog } from "@/components/ui/Sheet";
-import { TrashIcon } from "@/components/ui/Icons";
+import { GripIcon, TrashIcon } from "@/components/ui/Icons";
 
 interface Props {
   entry: CardioEntry;
   mutate: (fn: (w: Workout) => Workout) => void;
   /** タイマーへのリンクを出す（アクティブ時） */
   timerLink?: boolean;
+  /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
+  dragItem?: { ref: (el: HTMLElement | null) => void; style?: React.CSSProperties; "data-dragging"?: string };
+  dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
 }
 
 export function SegmentTable({ plan }: { plan: CardioSegment[] }) {
@@ -55,7 +58,7 @@ export function SegmentTable({ plan }: { plan: CardioSegment[] }) {
   );
 }
 
-export function CardioCard({ entry: c, mutate, timerLink }: Props) {
+export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }: Props) {
   const [open, setOpen] = useState(!c.completed);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const total = planTotalMin(c.plan);
@@ -66,8 +69,8 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
   const patchActual = (p: Partial<NonNullable<CardioEntry["actual"]>>) => patch({ actual: { ...c.actual, ...p } });
 
   return (
-    <section className={`card overflow-hidden ${c.skipped ? "opacity-60" : ""}`} data-testid="cardio-card">
-      <header className="flex items-center gap-2 px-3 py-2.5" onClick={() => setOpen((v) => !v)} role="button" aria-expanded={open} tabIndex={0}>
+    <section className={`card overflow-hidden ${c.skipped ? "opacity-60" : ""}`} data-testid="cardio-card" {...dragItem}>
+      <header className="flex items-center gap-2 px-3 py-2.5" {...dragHandle} onClick={() => setOpen((v) => !v)} role="button" aria-expanded={open} tabIndex={0}>
         <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${c.completed ? "bg-success text-white" : "bg-card-2 text-muted"}`}>{c.completed ? "✓" : c.machine === "bike" ? "🚴" : "🏃"}</div>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold">
@@ -79,6 +82,11 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
           </div>
         </div>
         <span className="text-muted">{open ? "▾" : "▸"}</span>
+        {dragHandle && (
+          <span className="-mr-1 text-muted/60" title="長押しして上下に動かすと順番を入れ替えられます" aria-hidden="true">
+            <GripIcon />
+          </span>
+        )}
       </header>
       {open && (
         <div className="space-y-3 border-t border-border px-3 pb-3 pt-2">
