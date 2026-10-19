@@ -77,7 +77,7 @@ export function SettingsView() {
 
       <ShareSettings />
 
-      <Section id="preferences" title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
+      <Section id="preferences" title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。トレーニング中にコーチの「今後この種目は外したい」を選んでも更新されます。">
         <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />
         <button type="button" className="btn-primary mt-2 w-full" onClick={() => router.push("/preferences")} data-testid="prefs-edit">
           ヒアリング結果を編集する

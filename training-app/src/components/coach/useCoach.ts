@@ -3,15 +3,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveWorkout } from "@/components/workout/ActiveWorkoutProvider";
 import { useSettings } from "@/hooks/useSettings";
-import { parseIntent, respond, type CoachReply } from "@/lib/coach/intents";
+import { respond, type CoachReply, type Intent } from "@/lib/coach/intents";
+import type { WishOp } from "@/lib/preferences";
 import { applyPlanPatch } from "@/lib/coach/applyPatch";
 import { listCompletedWorkouts, listStoreEquipment, saveWish } from "@/lib/db/repo";
-import { detectWish, respondToWish } from "@/lib/coach/wish";
+import { respondToWish } from "@/lib/coach/wish";
 import { availableExercises } from "@/lib/planner";
 
 /**
  * コーチ（ルールベース・完全無料）
- * 入力文から意図を解析し、進行中メニューの「予定」だけを変更する。外部 API は使わない。
+ * 選択肢から選んだ相談に応じて、進行中メニューの「予定」だけを変更する（自由入力は使わない）。外部 API は使わない。
  */
 export interface ChatMessage {
   id: string;
@@ -63,25 +64,26 @@ export function useCoach() {
     [workout, mutate, router],
   );
 
-  const send = useCallback(
-    async (text: string) => {
-      const t = text.trim();
-      if (!t || busy) return;
+  /**
+   * 選択肢から選んだ相談を実行する（自由入力はしない）
+   * - intent：今日のメニューの調整（残り時間・疲れ・マシンなど）
+   * - wish：今後のメニューへの希望（この種目は外したい など）
+   */
+  const choose = useCallback(
+    async (label: string, action: { intent: Intent } | { wish: WishOp[] }) => {
+      if (busy) return;
       setBusy(true);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: t }]);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: label }]);
       try {
+        if ("wish" in action) {
+          await saveWish(label, action.wish);
+          setMessages((m) => [...m, applyReply(respondToWish(action.wish, workout))]);
+          return;
+        }
         const [history, equipment] = await Promise.all([listCompletedWorkouts(), listStoreEquipment()]);
         const storeId = workout?.storeId ?? settings.lastStoreId ?? "ichijoji";
         const availableIds = new Set(availableExercises(equipment, storeId, settings.excludedExerciseIds).map((a) => a.def.id));
-        // 今後の希望（「次からスクワットはやりたくない」など）は保存して、以降のメニュー作成に反映する
-        const wish = detectWish(t);
-        if (wish) {
-          await saveWish(t, wish);
-          setMessages((m) => [...m, applyReply(respondToWish(wish, workout))]);
-          return;
-        }
-        const reply = respond(parseIntent(t, workout), workout, { history, availableIds });
-        setMessages((m) => [...m, applyReply(reply)]);
+        setMessages((m) => [...m, applyReply(respond(action.intent, workout, { history, availableIds }))]);
       } finally {
         setBusy(false);
       }
@@ -90,5 +92,5 @@ export function useCoach() {
   );
 
   const clear = () => setMessages([]);
-  return { messages, send, busy, clear, hasWorkout: !!workout };
+  return { messages, choose, busy, clear, hasWorkout: !!workout, workout };
 }

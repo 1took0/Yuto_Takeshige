@@ -23,7 +23,7 @@ import { clearTimer } from "@/hooks/useTimer";
 import { useToast } from "@/components/ui/Toast";
 import { DurationEditor } from "./DurationEditor";
 import type { WorkoutDurations } from "@/lib/types";
-import { CoachInput } from "@/components/coach/CoachInput";
+import { CoachPresets } from "@/components/coach/CoachPresets";
 
 export function ActiveWorkoutView() {
   const { workout: w, loading, mutate, setWorkout, savedAt, saving } = useActiveWorkout();
@@ -199,12 +199,12 @@ export function ActiveWorkoutView() {
           </div>
           <div className="card p-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowCoach((v) => !v)} aria-expanded={showCoach}>
-              <span className="font-semibold">💬 コーチに相談（「あと20分しかない」「このマシンがない」など）</span>
+              <span className="font-semibold">コーチに相談（残り時間・疲れ・マシンなど）</span>
               <span className="text-muted">{showCoach ? "▾" : "▸"}</span>
             </button>
             {showCoach && (
               <div className="mt-2">
-                <CoachInput compact />
+                <CoachPresets />
               </div>
             )}
           </div>

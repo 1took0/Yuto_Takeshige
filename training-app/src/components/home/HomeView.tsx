@@ -6,7 +6,7 @@ import { listCompletedWorkouts } from "@/lib/db/repo";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { progressOf } from "@/lib/workout/edit";
-import { CoachInput } from "@/components/coach/CoachInput";
+import { CoachPresets } from "@/components/coach/CoachPresets";
 import { countedSets } from "@/lib/planner/history";
 
 export function HomeView() {
@@ -44,9 +44,9 @@ export function HomeView() {
       )}
 
       <section className="card p-3">
-        <h2 className="mb-2 text-sm font-semibold text-muted">チャットで開始・相談</h2>
-        <CoachInput compact />
-        <p className="mt-2 text-[11px] text-muted">「ジムに来た」と入力するとヒアリングを開始します。</p>
+        <h2 className="mb-2 text-sm font-semibold text-muted">コーチに相談</h2>
+        <CoachPresets />
+        <p className="mt-2 text-[11px] text-muted">あてはまるものを選ぶと、メニューに反映します。トレーニング中は「残り時間が少ない」「疲れている部位がある」なども選べます。</p>
       </section>
 
       <section className="grid grid-cols-3 gap-2">
@@ -79,14 +79,9 @@ export function HomeView() {
         </section>
       )}
 
-      <section className="grid grid-cols-2 gap-2">
-        <Link href="/timer/interval" className="btn-secondary">
-          ⏱ タイマー
-        </Link>
-        <Link href="/coach" className="btn-secondary">
-          💬 コーチに相談
-        </Link>
-      </section>
+      <Link href="/timer/interval" className="btn-secondary w-full">
+        ⏱ タイマー
+      </Link>
     </div>
   );
 }

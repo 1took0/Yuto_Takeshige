@@ -36,10 +36,10 @@ test("初回ヒアリングの希望とコーチに伝えた希望がメニュ�
   await expect(cards.filter({ hasText: "レッグプレス" })).toHaveCount(0);
   await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);
 
-  // コーチに今後の希望を伝える → 今日のメニューからも外れ、設定に残る
+  // コーチの「今後この種目は外したい」を選ぶ → 今日のメニューからも外れ、設定に残る
   await page.goto("/");
-  await page.getByTestId("coach-input").fill("次からチェストプレスは苦手なので外して");
-  await page.getByTestId("coach-send").click();
+  await page.getByTestId("coach-preset-dislike").click();
+  await page.getByTestId("coach-step").getByRole("button", { name: "チェストプレス", exact: true }).click();
   await expect(page.getByTestId("coach-reply")).toContainText("次回以降のメニューに反映します");
   await page.goto("/workout");
   await expect(page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" })).toHaveCount(0);
