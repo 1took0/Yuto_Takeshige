@@ -131,7 +131,7 @@ describe("メニュー作成への反映", () => {
   });
 });
 
-describe("コーチへの希望の返答", () => {
+describe("今後の希望（この種目は外したい）への返答", () => {
   it("進行中メニューの未着手の種目は今日からも外す", () => {
     const w = generatePlan({
       intake: { storeId: "ichijoji", timeLimitMin: 60, condition: 4, soreness: false, soreRegions: [], pain: { present: false }, focus: "auto", cardio: "walk" },

@@ -11,7 +11,7 @@ import { respondToWish } from "@/lib/coach/wish";
 import { availableExercises } from "@/lib/planner";
 
 /**
- * コーチ（ルールベース・完全無料）
+ * トレーニングの調整（ルールベース・完全無料）
  * 選択肢から選んだ相談に応じて、進行中メニューの「予定」だけを変更する（自由入力は使わない）。外部 API は使わない。
  */
 export interface ChatMessage {
@@ -22,9 +22,9 @@ export interface ChatMessage {
   skipped?: string[];
 }
 
-const STORAGE_KEY = "tc.coach.messages";
+const STORAGE_KEY = "tc.adjust.messages";
 
-export function useCoach() {
+export function useAdjust() {
   const { workout, mutate } = useActiveWorkout();
   const { settings } = useSettings();
   const router = useRouter();

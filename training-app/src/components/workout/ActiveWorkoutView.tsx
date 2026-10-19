@@ -23,7 +23,7 @@ import { clearTimer } from "@/hooks/useTimer";
 import { useToast } from "@/components/ui/Toast";
 import { DurationEditor } from "./DurationEditor";
 import type { WorkoutDurations } from "@/lib/types";
-import { CoachPresets } from "@/components/coach/CoachPresets";
+import { TrainingAdjust } from "@/components/adjust/TrainingAdjust";
 
 export function ActiveWorkoutView() {
   const { workout: w, loading, mutate, setWorkout, savedAt, saving } = useActiveWorkout();
@@ -36,7 +36,7 @@ export function ActiveWorkoutView() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [durDraft, setDurDraft] = useState<WorkoutDurations | undefined>(undefined);
   const [rest, setRest] = useState<{ sec: number; nonce: number } | null>(null);
-  const [showCoach, setShowCoach] = useState(false);
+  const [showAdjust, setShowAdjust] = useState(false);
 
   const focusedId = w?.ui?.focusedExerciseId ?? null;
   // この店舗の器具ごとの重量の刻み
@@ -198,13 +198,13 @@ export function ActiveWorkoutView() {
             </button>
           </div>
           <div className="card p-3">
-            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowCoach((v) => !v)} aria-expanded={showCoach}>
-              <span className="font-semibold">コーチに相談（残り時間・疲れ・マシンなど）</span>
-              <span className="text-muted">{showCoach ? "▾" : "▸"}</span>
+            <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowAdjust((v) => !v)} aria-expanded={showAdjust}>
+              <span className="font-semibold">トレーニングを調整（残り時間・疲れ・マシンなど）</span>
+              <span className="text-muted">{showAdjust ? "▾" : "▸"}</span>
             </button>
-            {showCoach && (
+            {showAdjust && (
               <div className="mt-2">
-                <CoachPresets />
+                <TrainingAdjust />
               </div>
             )}
           </div>

@@ -3,9 +3,9 @@ import { test, expect, devices } from "@playwright/test";
 /**
  * メニューの希望
  * - 初めてのトレーニングで希望を質問し、メニューに反映する
- * - その後にコーチへ伝えた希望も、以降のメニュー作成に反映する
+ * - その後に「トレーニングを調整」で選んだ希望も、以降のメニュー作成に反映する
  */
-test("初回ヒアリングの希望とコーチに伝えた希望がメニューに反映される", async ({ browser }) => {
+test("初回ヒアリングの希望と「トレーニングを調整」で選んだ希望がメニューに反映される", async ({ browser }) => {
   const ctx = await browser.newContext({ ...devices["iPhone 14"] });
   const page = await ctx.newPage();
   await page.goto("/");
@@ -36,11 +36,11 @@ test("初回ヒアリングの希望とコーチに伝えた希望がメニュ�
   await expect(cards.filter({ hasText: "レッグプレス" })).toHaveCount(0);
   await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);
 
-  // コーチの「今後この種目は外したい」を選ぶ → 今日のメニューからも外れ、設定に残る
+  // 「トレーニングを調整」の「今後この種目は外したい」を選ぶ → 今日のメニューからも外れ、設定に残る
   await page.goto("/");
-  await page.getByTestId("coach-preset-dislike").click();
-  await page.getByTestId("coach-step").getByRole("button", { name: "チェストプレス", exact: true }).click();
-  await expect(page.getByTestId("coach-reply")).toContainText("次回以降のメニューに反映します");
+  await page.getByTestId("adjust-dislike").click();
+  await page.getByTestId("adjust-step").getByRole("button", { name: "チェストプレス", exact: true }).click();
+  await expect(page.getByTestId("adjust-reply")).toContainText("次回以降のメニューに反映します");
   await page.goto("/workout");
   await expect(page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" })).toHaveCount(0);
   await page.goto("/settings#preferences");

@@ -6,7 +6,7 @@ import { listCompletedWorkouts } from "@/lib/db/repo";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { progressOf } from "@/lib/workout/edit";
-import { CoachPresets } from "@/components/coach/CoachPresets";
+import { TrainingAdjust } from "@/components/adjust/TrainingAdjust";
 import { countedSets } from "@/lib/planner/history";
 
 export function HomeView() {
@@ -44,9 +44,9 @@ export function HomeView() {
       )}
 
       <section className="card p-3">
-        <h2 className="mb-2 text-sm font-semibold text-muted">コーチに相談</h2>
-        <CoachPresets />
-        <p className="mt-2 text-[11px] text-muted">あてはまるものを選ぶと、メニューに反映します。トレーニング中は「残り時間が少ない」「疲れている部位がある」なども選べます。</p>
+        <h2 className="mb-2 text-sm font-semibold text-muted">トレーニングを調整</h2>
+        <TrainingAdjust />
+        <p className="mt-2 text-[11px] text-muted">トレーニング中は、トレーニング画面の「トレーニングを調整」から残り時間・疲れている部位なども選べます。</p>
       </section>
 
       <section className="grid grid-cols-3 gap-2">

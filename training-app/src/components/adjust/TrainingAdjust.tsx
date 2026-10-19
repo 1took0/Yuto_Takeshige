@@ -1,11 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BodyRegion } from "@/lib/types";
 import { REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { getExercise } from "@/lib/catalog/exercises";
-import { useCoach } from "./useCoach";
+import { useAdjust } from "./useAdjust";
 
 type Step = "time" | "fatigue" | "no_machine" | "weight" | "dislike" | "comeback" | null;
 
@@ -20,12 +19,11 @@ const GAPS = [
 const TIMES = [10, 15, 20, 30, 45];
 
 /**
- * コーチへの相談（選択肢から選ぶ）
- * 自由入力はせず、用意した相談を選ぶと今日のメニュー・今後の希望に反映する
+ * トレーニングを調整（選択肢から選ぶ）
+ * 用意した調整を選ぶと、今日のメニュー・今後の希望に反映する
  */
-export function CoachPresets() {
-  const router = useRouter();
-  const { messages, choose, busy, workout } = useCoach();
+export function TrainingAdjust() {
+  const { messages, choose, busy, workout } = useAdjust();
   const [step, setStep] = useState<Step>(null);
   const [regions, setRegions] = useState<BodyRegion[]>([]);
   const last = messages[messages.length - 1];
@@ -56,7 +54,6 @@ export function CoachPresets() {
         { id: "dislike", label: "今後この種目は外したい", onClick: () => setStep("dislike"), hidden: !workout.exercises.length },
       ]
     : [
-        { id: "start", label: "ジムに来た（メニューを作る）", onClick: () => router.push("/start") },
         { id: "comeback", label: "久しぶりのトレーニング", onClick: () => setStep("comeback") },
       ];
 
@@ -71,9 +68,9 @@ export function CoachPresets() {
   );
 
   return (
-    <div className="space-y-2" data-testid="coach-presets">
+    <div className="space-y-2" data-testid="adjust-presets">
       {last && last.role === "assistant" && (
-        <div className="rounded-xl bg-card-2 p-2 text-sm" data-testid="coach-reply">
+        <div className="rounded-xl bg-card-2 p-2 text-sm" data-testid="adjust-reply">
           <div className="whitespace-pre-wrap">{last.content}</div>
           {last.applied && last.applied.length > 0 && (
             <ul className="mt-1 list-disc pl-4 text-xs text-success">
@@ -90,18 +87,18 @@ export function CoachPresets() {
           {presets
             .filter((p) => !p.hidden)
             .map((p) => (
-              <button key={p.id} type="button" className="chip px-3 py-2 text-sm" disabled={busy} onClick={p.onClick} data-testid={`coach-preset-${p.id}`}>
+              <button key={p.id} type="button" className="chip px-3 py-2 text-sm" disabled={busy} onClick={p.onClick} data-testid={`adjust-${p.id}`}>
                 {p.label}
               </button>
             ))}
           {!workout && (
-            <Link href="/settings#preferences" className="chip px-3 py-2 text-sm" data-testid="coach-preset-prefs">
+            <Link href="/settings#preferences" className="chip px-3 py-2 text-sm" data-testid="adjust-prefs">
               今後の希望を変える
             </Link>
           )}
         </div>
       ) : (
-        <div className="space-y-2 rounded-xl border border-border p-2" data-testid="coach-step">
+        <div className="space-y-2 rounded-xl border border-border p-2" data-testid="adjust-step">
           <div className="flex items-center justify-between text-xs text-muted">
             <span>
               {step === "time" && "残りは何分ですか？"}
@@ -138,7 +135,7 @@ export function CoachPresets() {
                 className="btn-primary w-full"
                 disabled={busy || !regions.length}
                 onClick={() => run(`${regions.map((r) => REGION_LABEL[r]).join("・")}が疲れている`, { intent: { type: "fatigue", regions } })}
-                data-testid="coach-fatigue-apply"
+                data-testid="adjust-fatigue-apply"
               >
                 この部位の負荷を下げる
               </button>

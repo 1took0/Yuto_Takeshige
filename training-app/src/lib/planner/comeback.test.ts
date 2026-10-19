@@ -56,7 +56,7 @@ describe("メニュー作成への反映", () => {
   });
 });
 
-describe("コーチのチャット", () => {
+describe("トレーニングを調整", () => {
   it("「久しぶりにジムに来た」はヒアリングへ進み、メモに引き継ぐ", () => {
     const r = respond(parseIntent("久しぶりにジムに来た", null), null, { history: [], availableIds: new Set() });
     expect(r.navigate).toContain("/start?memo=");

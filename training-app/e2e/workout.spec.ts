@@ -123,42 +123,44 @@ test("メニュー作成 → セット編集 → 再読み込みで復元 → �
   await expect(page.getByTestId("history-item")).toHaveCount(13);
 });
 
-test("コーチは選択肢から選ぶ：「ジムに来た」→ヒアリング、「残り時間が少ない → 20分」でメニュー短縮", async ({ page }) => {
+test("トレーニングを調整：選択肢から選ぶ（「ジムに来た」は無い）。「残り時間が少ない → 20分」でメニュー短縮", async ({ page }) => {
   await page.goto("/");
-  // 自由入力の欄は無い
-  await expect(page.getByTestId("coach-presets").locator("input, textarea")).toHaveCount(0);
-  await page.getByTestId("coach-preset-start").click();
+  // 自由入力の欄も「ジムに来た」も無い（トレーニング開始ボタンと同じなので）
+  await expect(page.getByTestId("adjust-presets").locator("input, textarea")).toHaveCount(0);
+  await expect(page.getByTestId("adjust-start")).toHaveCount(0);
+  await expect(page.getByText("コーチに相談")).toHaveCount(0);
+  await page.getByTestId("start").click();
   await expect(page.getByRole("heading", { name: "今日のコンディション" })).toBeVisible();
   await page.getByRole("radio", { name: "90分" }).click();
   await page.getByTestId("generate").click();
   await expect(page.getByTestId("progress")).toBeVisible();
   const before = await page.getByTestId("exercise-card").count();
-  await page.getByRole("button", { name: /コーチに相談/ }).click();
-  await page.getByTestId("coach-preset-time").click();
-  await page.getByTestId("coach-step").getByRole("button", { name: "20分", exact: true }).click();
-  await expect(page.getByTestId("coach-reply")).toContainText("残り20分");
+  await page.getByRole("button", { name: /トレーニングを調整/ }).click();
+  await page.getByTestId("adjust-time").click();
+  await page.getByTestId("adjust-step").getByRole("button", { name: "20分", exact: true }).click();
+  await expect(page.getByTestId("adjust-reply")).toContainText("残り20分");
   const after = await page.getByTestId("exercise-card").count();
   expect(after).toBeLessThan(before);
 });
 
-test("コーチの選択肢：疲れている部位・久しぶり・マシンが使えない", async ({ page }) => {
+test("トレーニングを調整の選択肢：疲れている部位・久しぶり・マシンが使えない", async ({ page }) => {
   await startWorkout(page);
-  await page.getByRole("button", { name: /コーチに相談/ }).click();
+  await page.getByRole("button", { name: /トレーニングを調整/ }).click();
   // 疲れている部位 → 脚 → 負荷を下げる
-  await page.getByTestId("coach-preset-fatigue").click();
-  await page.getByTestId("coach-step").getByRole("button", { name: "脚", exact: true }).click();
-  await page.getByTestId("coach-fatigue-apply").click();
-  await expect(page.getByTestId("coach-reply")).toContainText("脚の疲労を考慮");
+  await page.getByTestId("adjust-fatigue").click();
+  await page.getByTestId("adjust-step").getByRole("button", { name: "脚", exact: true }).click();
+  await page.getByTestId("adjust-fatigue-apply").click();
+  await expect(page.getByTestId("adjust-reply")).toContainText("脚の疲労を考慮");
   // 久しぶりだった → 1〜2か月ぶり
-  await page.getByTestId("coach-preset-comeback").click();
-  await page.getByTestId("coach-step").getByRole("button", { name: "1〜2か月ぶり" }).click();
-  await expect(page.getByTestId("coach-reply")).toContainText("ぶり");
+  await page.getByTestId("adjust-comeback").click();
+  await page.getByTestId("adjust-step").getByRole("button", { name: "1〜2か月ぶり" }).click();
+  await expect(page.getByTestId("adjust-reply")).toContainText("ぶり");
   // マシンが使えない → 種目を選ぶと置き換わる
-  await page.getByTestId("coach-preset-no_machine").click();
-  const first = page.getByTestId("coach-step").getByRole("button").nth(1);
+  await page.getByTestId("adjust-no_machine").click();
+  const first = page.getByTestId("adjust-step").getByRole("button").nth(1);
   const name = (await first.textContent())!.trim();
   await first.click();
-  await expect(page.getByTestId("coach-reply")).toContainText(name);
+  await expect(page.getByTestId("adjust-reply")).toContainText(name);
 });
 
 test("タイマー：選んでもすぐには始まらず、スタート→一時停止→再開、再読み込みで復元", async ({ page }) => {
