@@ -10,7 +10,8 @@ import { AddExerciseSheet } from "./AddExerciseSheet";
 import { RestTimerBar } from "@/components/timer/RestTimerBar";
 import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
-import { addCardio, addExercise, finalizeWorkout, progressOf } from "@/lib/workout/edit";
+import { addCardio, addExercise, finalizeWorkout, moveExerciseTo, progressOf } from "@/lib/workout/edit";
+import { useLongPressReorder } from "./useLongPressReorder";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { clearTimer } from "@/hooks/useTimer";
@@ -34,6 +35,9 @@ export function ActiveWorkoutView() {
 
   const focusedId = w?.ui?.focusedExerciseId ?? null;
   const progress = useMemo(() => (w ? progressOf(w) : null), [w]);
+  // 種目カードを長押しして上下に動かすと並べ替える
+  const exerciseIds = useMemo(() => (w ? w.exercises.map((e) => e.id) : []), [w]);
+  const reorder = useLongPressReorder(exerciseIds, (id, to) => mutate((x) => moveExerciseTo(x, id, to)), !focusedId);
 
   // 初期状態：最初の未完了種目だけ開き、他は折りたたむ（ユーザー操作後は操作を優先）
   const collapsed = useMemo(() => {
@@ -127,7 +131,8 @@ export function ActiveWorkoutView() {
             key={e.id}
             exercise={e}
             index={idx}
-            total={w.exercises.length}
+            dragItem={focusedId ? undefined : reorder.itemProps(e.id)}
+            dragHandle={focusedId ? undefined : reorder.handleProps(e.id)}
             mutate={mutate}
             collapsed={!!collapsed[e.id] && !focusedId}
             focused={focusedId === e.id}

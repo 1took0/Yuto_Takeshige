@@ -5,6 +5,9 @@ import type { CardioEntry, CardioSegment, Workout } from "@/lib/types";
 import { NumberField } from "@/components/ui/NumberField";
 import { formatDuration } from "@/lib/date/trainingDay";
 import { planDistanceKm, planRunMin, planTotalMin } from "@/lib/planner/cardio";
+import { removeCardio } from "@/lib/workout/edit";
+import { ConfirmDialog } from "@/components/ui/Sheet";
+import { TrashIcon } from "@/components/ui/Icons";
 
 interface Props {
   entry: CardioEntry;
@@ -54,6 +57,7 @@ export function SegmentTable({ plan }: { plan: CardioSegment[] }) {
 
 export function CardioCard({ entry: c, mutate, timerLink }: Props) {
   const [open, setOpen] = useState(!c.completed);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const total = planTotalMin(c.plan);
   const run = planRunMin(c.plan);
   const dist = planDistanceKm(c.plan);
@@ -120,16 +124,26 @@ export function CardioCard({ entry: c, mutate, timerLink }: Props) {
               </button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button type="button" className={`flex-1 ${c.completed ? "btn-secondary" : "btn-primary"}`} onClick={() => patch({ completed: !c.completed, skipped: false })}>
               {c.completed ? "完了を取り消す" : "完了にする"}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => patch({ skipped: !c.skipped, completed: false })}>
-              {c.skipped ? "戻す" : "今日はやらない"}
+            <button type="button" className="tap flex items-center gap-1 px-2 text-sm text-danger" onClick={() => setConfirmRemove(true)} aria-label={`${title}を削除`} data-testid="cardio-delete">
+              <TrashIcon className="h-4 w-4" />
+              削除
             </button>
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmRemove}
+        title={`${title}を削除しますか？`}
+        message={c.completed || c.actual?.totalMin ? "入力した実績も記録から消えます。" : "このメニューから外します。"}
+        confirmLabel="削除"
+        danger
+        onConfirm={() => mutate((w) => removeCardio(w, c.id))}
+        onClose={() => setConfirmRemove(false)}
+      />
     </section>
   );
 }

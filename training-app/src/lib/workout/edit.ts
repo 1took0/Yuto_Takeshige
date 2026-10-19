@@ -25,10 +25,38 @@ export function updateSet(w: Workout, exId: string, setId: string, patch: Partia
   }));
 }
 
+/**
+ * セットの完了を切り替える
+ * 完了にしたセットは「目標どおり実施した」として実回数（片手種目は左右、時間種目は秒数）を目標の値で記録する。
+ * 次回のメニュー作成で重量を上げる判断に使う。未完了に戻すと実回数も消す。
+ */
 export function toggleSetCompleted(w: Workout, exId: string, setId: string): Workout {
   return mapExercise(w, exId, (e) => {
     const now = new Date().toISOString();
-    const sets = e.sets.map((s) => (s.id === setId ? { ...s, completed: !s.completed, excluded: s.completed ? s.excluded : false, completedAt: s.completed ? undefined : now } : s));
+    const sets = e.sets.map((s) => {
+      if (s.id !== setId) return s;
+      if (s.completed) {
+        return {
+          ...s,
+          completed: false,
+          completedAt: undefined,
+          actualReps: undefined,
+          actualSeconds: undefined,
+          left: s.left ? { ...s.left, actualReps: undefined } : s.left,
+          right: s.right ? { ...s.right, actualReps: undefined } : s.right,
+        };
+      }
+      return {
+        ...s,
+        completed: true,
+        excluded: false,
+        completedAt: now,
+        actualReps: s.actualReps ?? s.reps,
+        actualSeconds: s.actualSeconds ?? s.seconds,
+        left: s.left ? { ...s.left, actualReps: s.left.actualReps ?? s.left.reps ?? s.reps } : s.left,
+        right: s.right ? { ...s.right, actualReps: s.right.actualReps ?? s.right.reps ?? s.reps } : s.right,
+      };
+    });
     const anyDone = sets.some((s) => s.completed);
     return { ...e, sets, status: anyDone ? (e.status === "skipped" ? "planned" : e.status) : e.status };
   });
@@ -250,4 +278,21 @@ export function newManualWorkout(storeId: string, storeLabel: string, now = new 
 export function addCardio(w: Workout, machine: CardioMachine): Workout {
   const entry: CardioEntry = { id: newId("cardio"), machine, plan: [], completed: false, role: "main", rationale: "自分で追加" };
   return touch({ ...w, cardio: [...w.cardio, entry] });
+}
+
+/** 有酸素を外す */
+export function removeCardio(w: Workout, cardioId: string): Workout {
+  return touch({ ...w, cardio: w.cardio.filter((c) => c.id !== cardioId) });
+}
+
+/** 種目を任意の位置へ移動（長押しドラッグの並べ替え用） */
+export function moveExerciseTo(w: Workout, exId: string, toIndex: number): Workout {
+  const from = w.exercises.findIndex((e) => e.id === exId);
+  if (from < 0) return w;
+  const to = Math.max(0, Math.min(w.exercises.length - 1, toIndex));
+  if (from === to) return w;
+  const exercises = [...w.exercises];
+  const [moved] = exercises.splice(from, 1);
+  exercises.splice(to, 0, moved);
+  return touch({ ...w, exercises });
 }

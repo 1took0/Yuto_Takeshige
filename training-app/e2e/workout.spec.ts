@@ -274,12 +274,14 @@ test("店舗を追加してトレーニングし、削除後も記録に店舗�
 
 test("終了時にトレーニング時間の内訳が出て、修正でき、履歴に表示される", async ({ page }) => {
   await page.goto("/settings");
-  await page.getByTestId("prefer-dumbbell").check();
-  // 保存が終わる前に画面を離れないよう、再読み込みしても残っていることを確かめてから進む
+  // 設定の読み込み前に押すと保存されないことがあるため、再読み込みしても残っていることを確かめてから進む
+  const preferDumbbell = page.getByTestId("prefer-dumbbell");
   await expect(async () => {
+    if (!(await preferDumbbell.isChecked())) await preferDumbbell.check();
+    await page.waitForTimeout(300);
     await page.reload();
-    await expect(page.getByTestId("prefer-dumbbell")).toBeChecked({ timeout: 1000 });
-  }).toPass();
+    await expect(preferDumbbell).toBeChecked({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
   await startWorkout(page);
   await expect(page.locator('[data-exercise-id^="db_"]').first()).toBeVisible();
   await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();
@@ -407,4 +409,53 @@ test("メニューを作らずに自分で入力して記録できる", async ({
   await page.getByTestId("finish-confirm").click();
   await expect(page).toHaveURL(/\/history\//);
   await expect(page.getByTestId("detail-exercise").filter({ hasText: "チェストプレス" })).toBeVisible();
+});
+
+test("種目カード：線画のゴミ箱・フォームは閉じた状態・長押しで並べ替え・有酸素も削除できる", async ({ page }) => {
+  await startWorkout(page);
+  const cards = page.getByTestId("exercise-card");
+  const first = cards.first();
+  // セット削除は線画アイコン（絵文字ではない）
+  const del = first.getByRole("button", { name: "セットを削除" }).first();
+  await expect(del.locator("svg")).toBeVisible();
+  await expect(del).not.toContainText("🗑");
+  // 「実回数」ボタンは無い
+  await expect(page.getByRole("button", { name: "実回数" })).toHaveCount(0);
+  // フォームは最初は閉じていて、押すと開く
+  await expect(first.getByTestId("form-panel")).toHaveCount(0);
+  await first.getByTestId("form-toggle").click();
+  await expect(first.getByTestId("form-panel")).toBeVisible();
+  await expect(first.getByLabel("種目メモ")).toBeVisible();
+  // 上下の矢印は無い
+  await expect(page.getByRole("button", { name: "上へ移動" })).toHaveCount(0);
+
+  // 2番目の種目の見出しを長押しして上へ動かすと、1番目と入れ替わる
+  const names = async () => (await cards.locator("h3").allTextContents()).map((t) => t.trim());
+  const before = await names();
+  const second = cards.nth(1).locator("header");
+  await second.scrollIntoViewIfNeeded();
+  const box = (await second.boundingBox())!;
+  const firstBox = (await cards.first().locator("header").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - ((box.y - firstBox.y + 20) * i) / 8);
+  await page.mouse.up();
+  await expect.poll(names).toEqual([before[1], before[0], ...before.slice(2)]);
+
+  // 長押しせずにすぐ動かした場合は並べ替えない（スクロール扱い）
+  const now = await names();
+  const b2 = (await cards.nth(1).locator("header").boundingBox())!;
+  await page.mouse.move(b2.x + 20, b2.y + b2.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b2.x + 20, b2.y - 200, { steps: 5 });
+  await page.mouse.up();
+  expect(await names()).toEqual(now);
+
+  // 有酸素：「今日はやらない」は無く、削除できる
+  await expect(page.getByRole("button", { name: "今日はやらない" })).toHaveCount(0);
+  const tm = page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" });
+  await tm.getByTestId("cardio-delete").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
+  await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);
 });

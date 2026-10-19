@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addExercise, addSet, finalizeWorkout, progressOf, removeSet, setExcluded, toggleSetCompleted, updateSet } from "./edit";
+import { addExercise, addSet, finalizeWorkout, moveExerciseTo, progressOf, removeSet, setExcluded, toggleSetCompleted, updateSet } from "./edit";
 import type { Workout } from "@/lib/types";
 
 function base(): Workout {
@@ -55,15 +55,38 @@ describe("workout edit", () => {
     expect(w.exercises[0].sets[0].left?.weight).toBe(5);
   });
 
-  it("終了時に未完了セットは除外され、実績は推測されない", () => {
+  it("終了時に未完了セットは除外され、完了したセットだけ目標どおり実施として記録される", () => {
     let w = addExercise(base(), "lat_pulldown", { sets: 3, weight: 35 });
     const ex = w.exercises[0];
     w = toggleSetCompleted(w, ex.id, ex.sets[0].id);
     const done = finalizeWorkout(w, "2026-10-18T02:00:00.000Z");
     expect(done.status).toBe("completed");
     expect(done.exercises[0].sets.map((s) => s.excluded)).toEqual([false, true, true]);
-    expect(done.exercises[0].sets[0].actualReps).toBeUndefined();
+    expect(done.exercises[0].sets[0].actualReps).toBe(done.exercises[0].sets[0].reps);
+    expect(done.exercises[0].sets[1].actualReps).toBeUndefined();
     expect(done.exercises[0].status).toBe("done");
+  });
+
+  it("完了を取り消すと実回数も消える。片手種目は左右とも記録", () => {
+    let w = addExercise(base(), "db_curl_single", { sets: 2, weight: 8 });
+    const ex = w.exercises[0];
+    w = updateSet(w, ex.id, ex.sets[0].id, { left: { weight: 8, reps: 10 }, right: { weight: 8, reps: 12 } });
+    w = toggleSetCompleted(w, ex.id, ex.sets[0].id);
+    expect(w.exercises[0].sets[0].left?.actualReps).toBe(10);
+    expect(w.exercises[0].sets[0].right?.actualReps).toBe(12);
+    w = toggleSetCompleted(w, ex.id, ex.sets[0].id);
+    expect(w.exercises[0].sets[0].completed).toBe(false);
+    expect(w.exercises[0].sets[0].left?.actualReps).toBeUndefined();
+    expect(w.exercises[0].sets[0].actualReps).toBeUndefined();
+  });
+
+  it("種目を任意の位置へ移動できる", () => {
+    let w = addExercise(addExercise(addExercise(base(), "leg_press"), "chest_press"), "lat_pulldown");
+    const ids = w.exercises.map((e) => e.exerciseId);
+    w = moveExerciseTo(w, w.exercises[2].id, 0);
+    expect(w.exercises.map((e) => e.exerciseId)).toEqual([ids[2], ids[0], ids[1]]);
+    w = moveExerciseTo(w, w.exercises[0].id, 99);
+    expect(w.exercises.map((e) => e.exerciseId)).toEqual([ids[0], ids[1], ids[2]]);
   });
 
   it("推定残り時間は未完了セット分 + 有酸素", () => {

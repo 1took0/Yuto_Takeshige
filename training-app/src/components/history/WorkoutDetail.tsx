@@ -12,7 +12,8 @@ import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { CardioCard } from "@/components/workout/CardioCard";
 import { AddExerciseSheet } from "@/components/workout/AddExerciseSheet";
 import { ConfirmDialog } from "@/components/ui/Sheet";
-import { addExercise } from "@/lib/workout/edit";
+import { addExercise, moveExerciseTo } from "@/lib/workout/edit";
+import { useLongPressReorder } from "@/components/workout/useLongPressReorder";
 import { countedSets } from "@/lib/planner/history";
 import { useToast } from "@/components/ui/Toast";
 import { DurationEditor } from "@/components/workout/DurationEditor";
@@ -52,6 +53,8 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
     },
     [],
   );
+  // 編集中は種目カードを長押しして上下に動かすと並べ替える
+  const reorder = useLongPressReorder(draft?.exercises.map((e) => e.id) ?? [], (exId, to) => mutate((x) => moveExerciseTo(x, exId, to)), editing);
 
   if (fromDb === undefined && !draft) return <p className="py-10 text-center text-muted">読み込み中…</p>;
   const w = editing && draft ? draft : fromDb;
@@ -126,7 +129,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
         <>
           {w.cardio.filter((c) => c.role === "warmup").map((c) => <CardioCard key={c.id} entry={c} mutate={mutate} />)}
           {w.exercises.map((e, i) => (
-            <ExerciseCard key={e.id} exercise={e} index={i} total={w.exercises.length} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly />
+            <ExerciseCard key={e.id} exercise={e} index={i} dragItem={reorder.itemProps(e.id)} dragHandle={reorder.handleProps(e.id)} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly />
           ))}
           <button type="button" className="btn-secondary w-full" onClick={() => setShowAdd(true)}>
             ＋ 種目を追加
