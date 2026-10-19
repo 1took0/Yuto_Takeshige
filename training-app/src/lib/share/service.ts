@@ -26,6 +26,38 @@ export interface PublicUser {
   updatedAt: string;
   /** 直近7日（トレーニング日基準）の回数と時間 */
   week?: { sessions: number; totalMin: number; dumbbellMin: number; machineMin: number; cardioMin: number };
+  /** 直近28日の日ごとの実施（いつ・どこで・どれくらい） */
+  days?: ActivityDay[];
+}
+
+export interface ActivityDay {
+  date: string;
+  storeId: string;
+  storeLabel?: string;
+  /** その日の合計（分）。時間の記録が無ければ undefined */
+  totalMin?: number;
+  setCount: number;
+  sessions: number;
+}
+
+export const ACTIVITY_DAYS = 28;
+
+/** 直近の日ごとの実施をまとめる（同じ日に複数回あれば合算し、店舗は最初の記録） */
+export function recentActivity(ws: SharedWorkout[], today = trainingDateOf(), days = ACTIVITY_DAYS): ActivityDay[] {
+  const map = new Map<string, ActivityDay>();
+  for (const w of ws) {
+    const d = diffDays(today, w.trainingDate);
+    if (d < 0 || d >= days) continue;
+    const cur = map.get(w.trainingDate);
+    const min = w.durations?.totalMin;
+    if (!cur) map.set(w.trainingDate, { date: w.trainingDate, storeId: w.storeId, storeLabel: w.storeLabel, totalMin: min, setCount: w.setCount, sessions: 1 });
+    else map.set(w.trainingDate, { ...cur, totalMin: min !== undefined || cur.totalMin !== undefined ? (cur.totalMin ?? 0) + (min ?? 0) : undefined, setCount: cur.setCount + w.setCount, sessions: cur.sessions + 1 });
+  }
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function publicUser(p: StoredProfile, ws: SharedWorkout[]): PublicUser {
+  return { userId: p.userId, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws), days: recentActivity(ws) };
 }
 
 export function weekStats(ws: SharedWorkout[], today = trainingDateOf()): NonNullable<PublicUser["week"]> {
@@ -181,7 +213,7 @@ export async function getFeed(kv: KV, limit = 40): Promise<{ users: PublicUser[]
       const p = await getProfile(kv, id);
       if (!p) return;
       const ws = parseWorkouts(await kv.hgetall(wKey(id)));
-      users.push({ userId: id, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws) });
+      users.push(publicUser({ ...p, userId: id }, ws));
       for (const w of ws.slice(0, limit)) recent.push({ userId: id, displayName: p.displayName, workout: w });
     }),
   );
@@ -194,5 +226,5 @@ export async function getUserWorkouts(kv: KV, userId: string): Promise<{ user: P
   const p = await getProfile(kv, userId);
   if (!p) return null;
   const ws = parseWorkouts(await kv.hgetall(wKey(userId)));
-  return { user: { userId, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws) }, workouts: ws };
+  return { user: publicUser({ ...p, userId }, ws), workouts: ws };
 }

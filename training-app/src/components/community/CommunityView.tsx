@@ -4,11 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSettings } from "@/hooks/useSettings";
 import { shareApi } from "@/lib/share/client";
 import type { FeedItem, PublicUser } from "@/lib/share/service";
-import { workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
-import { countedSets } from "@/lib/planner/history";
-import type { Workout } from "@/lib/types";
 import { formatDurations } from "@/lib/workout/duration";
+import { ActivityGrid, SessionBar, storeLabel } from "./ActivityViz";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 
@@ -71,6 +69,13 @@ export function CommunityView() {
 
       {data && (
         <>
+          {data.users.length > 0 && (
+            <section className="card p-3">
+              <h2 className="mb-2 font-semibold">直近2週間のみんな</h2>
+              <ActivityGrid users={data.users} myId={myId} today={today} />
+            </section>
+          )}
+
           <section className="card p-3">
             <h2 className="mb-2 font-semibold">共有している人（{data.users.length}人）</h2>
             {data.users.length === 0 && <p className="text-sm text-muted">まだ誰も共有していません。</p>}
@@ -185,36 +190,26 @@ function OwnerTools({ ownerCode, onVerified }: { ownerCode: string | null; onVer
   );
 }
 
+/** 最近のトレーニング1件：誰が・いつ・どこで・どれくらい（種目の内容は出さない） */
 function FeedCard({ item, isMe }: { item: FeedItem; isMe: boolean }) {
-  const w = item.workout as unknown as Workout;
-  const sets = w.exercises.reduce((a, e) => a + countedSets(e).length, 0);
-  const tm = w.cardio.find((c) => c.machine === "treadmill" && c.completed);
+  const w = item.workout;
   return (
-    <Link href={`/community/${item.userId}#${w.id}`} className="card block p-3" data-testid="feed-item">
+    <Link href={`/community/${item.userId}`} className="card block p-3" data-testid="feed-item">
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate font-semibold">
           {item.displayName}
           {isMe && <span className="ml-1 text-xs font-normal text-muted">（あなた）</span>}
         </span>
         <span className="shrink-0 text-xs text-muted">
-          {formatJaDate(w.trainingDate)} ・ {workoutStoreName(w, true)}
+          {formatJaDate(w.trainingDate)} ・ {storeLabel(w.storeId, w.storeLabel)}
         </span>
       </div>
-      <div className="mt-1 text-xs text-muted">
-        {w.exercises.filter((e) => countedSets(e).length).length}種目・{sets}セット
-        {tm?.actual?.runMin ? `・ラン${tm.actual.runMin}分${tm.actual.runSpeedKmh ? `（${tm.actual.runSpeedKmh}km/h）` : ""}` : tm?.actual?.totalMin ? `・トレッドミル${tm.actual.totalMin}分` : ""}
-      </div>
+      <SessionBar w={w} />
       {w.durations?.totalMin ? (
-        <div className="mt-1 text-xs" data-testid="feed-durations">
-          ⏱ {formatDurations(w.durations)}
+        <div className="mt-1 text-[11px] text-muted" data-testid="feed-durations">
+          {formatDurations(w.durations)}
         </div>
       ) : null}
-      <div className="mt-1 truncate text-sm">
-        {w.exercises
-          .filter((e) => countedSets(e).length)
-          .map((e) => e.name.replace(/（.*）/, ""))
-          .join("・")}
-      </div>
     </Link>
   );
 }

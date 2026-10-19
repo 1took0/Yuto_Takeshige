@@ -297,6 +297,8 @@ export interface Settings {
   /** 共有サーバーへの未送信変更があるか */
   shareDirty?: boolean;
   lastSharedAt?: string;
+  /** 共有サーバーに送った記録の形式（2 = 要約のみ） */
+  shareFormat?: number;
   updatedAt: string;
 }
 

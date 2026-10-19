@@ -78,7 +78,7 @@ export function WelcomeForm() {
             <input type="checkbox" className="mt-1" checked={share} onChange={(e) => setShare(e.target.checked)} disabled={shareAvailable === null} data-testid="welcome-share" />
             <span>
               自分のトレーニング記録をアプリ利用者全員に共有する
-              <span className="block text-[11px] text-muted">共有されるのは種目・重量・回数・有酸素の記録と表示名です。体調・痛み・ヒアリングのメモは共有されません。いつでもやめられ、やめるとサーバー上の記録は削除されます。</span>
+              <span className="block text-[11px] text-muted">共有されるのは表示名と、いつ・どこで・どれくらい（時間・セット数）トレーニングしたかだけです。種目・重量・回数や、体調・痛み・メモは共有されません。いつでもやめられ、やめるとサーバー上の記録は削除されます。</span>
             </span>
           </label>
         )}

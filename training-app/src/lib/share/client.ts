@@ -3,15 +3,37 @@ import type { Profile, Workout } from "@/lib/types";
 import { getSettings, listCompletedWorkouts, updateSettings } from "@/lib/db/repo";
 import type { SharedWorkout } from "./sanitize";
 import { workoutStoreName } from "@/lib/catalog/stores";
+import { countedSets } from "@/lib/planner/history";
 import type { FeedItem, PublicUser } from "./service";
 
-/** 共有前に体調・痛み・メモ（intake）と UI 状態を落とす */
-export function toShareable(w: Workout): Omit<Workout, "intake" | "ui"> {
-  const { intake: _intake, ui: _ui, ...rest } = w;
-  void _intake;
-  void _ui;
-  // 他の人の端末に無い店舗でも名前が表示されるよう、店舗名を添える
-  return { ...rest, storeLabel: workoutStoreName(w) };
+/** 共有データの形式（2 = 要約のみ）。古い形式で送った端末は一度だけ送り直す */
+export const SHARE_FORMAT = 2;
+
+/**
+ * 共有するのは「いつ・どこで・どれくらい」の要約だけ
+ * 種目名・重量・回数、体調・痛み・メモ（intake）、UI 状態は送らない
+ */
+export function toShareable(w: Workout): SharedWorkout {
+  const done = w.exercises.map((e) => countedSets(e).length);
+  const cardioMin = w.cardio.filter((c) => c.completed && !c.skipped).reduce((a, c) => a + (c.actual?.totalMin ?? 0), 0);
+  const out: SharedWorkout = {
+    id: w.id,
+    trainingDate: w.trainingDate,
+    startedAt: w.startedAt,
+    storeId: w.storeId,
+    // 他の人の端末に無い店舗でも名前が表示されるよう、店舗名を添える
+    storeLabel: workoutStoreName(w),
+    status: "completed",
+    source: w.source,
+    exerciseCount: done.filter((n) => n > 0).length,
+    setCount: done.reduce((a, n) => a + n, 0),
+    createdAt: w.createdAt,
+    updatedAt: w.updatedAt,
+  };
+  if (w.endedAt) out.endedAt = w.endedAt;
+  if (w.durations) out.durations = w.durations;
+  if (cardioMin) out.cardioMin = cardioMin;
+  return out;
 }
 
 /** 端末ごとのプロフィールを作る（userId とトークンはランダム生成） */
@@ -66,7 +88,7 @@ export async function fullSync(): Promise<{ count: number }> {
     const ws = await listCompletedWorkouts();
     for (let i = 0; i < ws.length; i += CHUNK) await shareApi.put(s.profile, ws.slice(i, i + CHUNK));
     await shareApi.prune(s.profile, ws.map((w) => w.id));
-    await updateSettings({ shareDirty: false, lastSharedAt: new Date().toISOString() });
+    await updateSettings({ shareDirty: false, lastSharedAt: new Date().toISOString(), shareFormat: SHARE_FORMAT });
     return { count: ws.length };
   } catch (e) {
     await updateSettings({ shareDirty: true });

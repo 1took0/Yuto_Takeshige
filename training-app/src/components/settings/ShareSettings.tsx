@@ -76,7 +76,7 @@ export function ShareSettings() {
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm">
               <div className="font-medium">記録をアプリ利用者全員に共有する</div>
-              <div className="text-[11px] text-muted">種目・重量・回数・有酸素の記録と表示名が共有されます。体調・痛み・ヒアリングのメモは共有されません。</div>
+              <div className="text-[11px] text-muted">表示名と、いつ・どこで・どれくらい（時間・セット数）トレーニングしたかだけが共有されます。種目・重量・回数や、体調・痛み・メモは共有されません。</div>
             </div>
             <button
               type="button"

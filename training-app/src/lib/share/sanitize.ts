@@ -2,91 +2,80 @@ import { z } from "zod";
 
 /**
  * 共有用に記録を整形・検証する
- * - 体調・痛み・メモなどヒアリング内容（intake）と UI 状態は共有しない
- * - 未知のフィールドは捨て、既知のフィールドだけを取り出す
+ * - 共有するのは「誰が・いつ・どこで・どれくらい」だけ（種目名・重量・回数などの細かい内容は共有しない）
+ * - 体調・痛み・メモなどヒアリング内容（intake）、メモ、UI 状態も共有しない
+ * - 以前の形式（種目の詳細つき）で届いた・保存されていた記録も、ここで要約だけにする
  */
 const num = z.number().finite().min(0).max(10000).optional();
-const side = z.object({ weight: num, reps: num, actualReps: num }).partial().optional();
+const count = z.number().int().min(0).max(1000);
 const str = (max: number) => z.string().max(max).optional();
 
-const SetSchema = z.object({
-  id: z.string().max(80),
-  weight: num,
-  reps: num,
-  actualReps: num,
-  seconds: num,
-  actualSeconds: num,
-  left: side,
-  right: side,
-  completed: z.boolean(),
-  completedAt: str(40),
-  excluded: z.boolean(),
-  feel: z.enum(["easy", "ok", "hard"]).optional(),
-  note: str(200),
-});
+/** 以前の形式から要約を作るための最小限の形（それ以外のフィールドは読まずに捨てる） */
+const LegacyExercise = z.object({ sets: z.array(z.object({ completed: z.boolean(), excluded: z.boolean() })).max(30) });
+const LegacyCardio = z.object({ completed: z.boolean(), skipped: z.boolean().optional(), actual: z.object({ totalMin: num }).partial().optional() });
 
-const ExerciseSchema = z.object({
-  id: z.string().max(80),
-  exerciseId: z.string().max(60),
-  name: z.string().max(60),
-  equipmentId: str(60),
-  primary: z.array(z.string().max(30)).max(10),
-  sets: z.array(SetSchema).max(20),
-  restSec: z.number().min(0).max(600),
-  note: str(200),
-  status: z.enum(["planned", "done", "skipped"]),
-});
+const DurationsSchema = z
+  .object({ totalMin: num, machineMin: num, dumbbellMin: num, bodyweightMin: num, cardioMin: num, manual: z.boolean().optional() })
+  .partial();
 
-const SegmentSchema = z.object({
-  id: z.string().max(80),
-  kind: z.enum(["walk", "run", "bike", "cooldown", "warmup"]),
-  durationSec: z.number().min(0).max(7200),
-  speedKmh: num,
-  speedMaxKmh: num,
-  inclinePct: num,
-  level: num,
-  label: str(40),
-});
-
-const CardioSchema = z.object({
-  id: z.string().max(80),
-  machine: z.enum(["bike", "treadmill"]),
-  plan: z.array(SegmentSchema).max(30),
-  actual: z
-    .object({ totalMin: num, runMin: num, runSpeedKmh: num, walkSpeedKmh: num, distanceKm: num, inclinePct: num, level: num, longestRunMin: num, note: str(200) })
-    .partial()
-    .optional(),
-  completed: z.boolean(),
-  skipped: z.boolean().optional(),
-  role: z.enum(["warmup", "main"]),
-});
-
-export const SharedWorkoutSchema = z.object({
+const InputSchema = z.object({
   id: z.string().min(1).max(100),
   trainingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startedAt: z.string().max(40),
   endedAt: z.string().max(40).optional(),
   storeId: z.string().regex(/^[a-z0-9-]{1,40}$/),
   storeLabel: str(30),
-  exercises: z.array(ExerciseSchema).max(30),
-  cardio: z.array(CardioSchema).max(6),
   status: z.literal("completed"),
   source: z.enum(["app", "import"]),
-  notes: str(500),
-  durations: z
-    .object({ totalMin: num, machineMin: num, dumbbellMin: num, bodyweightMin: num, cardioMin: num, manual: z.boolean().optional() })
-    .partial()
-    .optional(),
+  durations: DurationsSchema.optional(),
+  exerciseCount: count.optional(),
+  setCount: count.optional(),
+  cardioMin: num,
+  exercises: z.array(LegacyExercise).max(30).optional(),
+  cardio: z.array(LegacyCardio).max(6).optional(),
   createdAt: z.string().max(40),
   updatedAt: z.string().max(40),
 });
 
-export type SharedWorkout = z.infer<typeof SharedWorkoutSchema>;
+/** 共有される記録（要約のみ） */
+export interface SharedWorkout {
+  id: string;
+  trainingDate: string;
+  startedAt: string;
+  endedAt?: string;
+  storeId: string;
+  storeLabel?: string;
+  status: "completed";
+  source: "app" | "import";
+  /** トレーニング時間の内訳（分） */
+  durations?: z.infer<typeof DurationsSchema>;
+  /** 実施した種目数・セット数 */
+  exerciseCount: number;
+  setCount: number;
+  /** 有酸素の合計（分） */
+  cardioMin?: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
-/** サーバー側で検証し、既知のフィールドだけを返す（不正なら null） */
+/** サーバー側で検証し、要約だけを返す（不正なら null） */
 export function sanitizeWorkout(input: unknown): SharedWorkout | null {
-  const r = SharedWorkoutSchema.safeParse(input);
-  return r.success ? r.data : null;
+  const r = InputSchema.safeParse(input);
+  if (!r.success) return null;
+  const { exercises, cardio, exerciseCount, setCount, cardioMin, durations, endedAt, storeLabel, ...base } = r.data;
+  const doneSets = (e: z.infer<typeof LegacyExercise>) => e.sets.filter((s) => s.completed && !s.excluded).length;
+  const out: SharedWorkout = {
+    ...base,
+    exerciseCount: exerciseCount ?? exercises?.filter((e) => doneSets(e) > 0).length ?? 0,
+    setCount: setCount ?? exercises?.reduce((a, e) => a + doneSets(e), 0) ?? 0,
+  };
+  if (endedAt !== undefined) out.endedAt = endedAt;
+  if (storeLabel !== undefined) out.storeLabel = storeLabel;
+  if (durations) out.durations = durations;
+  const legacyCardio = cardio?.filter((c) => c.completed && !c.skipped).reduce((a, c) => a + (c.actual?.totalMin ?? 0), 0);
+  const cm = cardioMin ?? (legacyCardio || undefined);
+  if (cm !== undefined) out.cardioMin = cm;
+  return out;
 }
 
 export const DisplayNameSchema = z
