@@ -194,6 +194,9 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
       <Field label="メモ（任意）">
         <input className="input" placeholder="例：次からスクワットは外してほしい" value={memo} onChange={(e) => setMemo(e.target.value)} aria-label="メモ" data-testid="intake-memo" />
         <p className="mt-1 text-[11px] text-muted">「次から」「今後は」「いつも」などを付けて書くと、以降のメニューにも反映します。</p>
+        <Link href="/start?manual=1" className="mt-3 inline-block text-sm text-accent" data-testid="manual-link">
+          メニューを作らず自分で入力する →
+        </Link>
       </Field>
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg bg-bg/95 px-4 pt-2 safe-bottom backdrop-blur">

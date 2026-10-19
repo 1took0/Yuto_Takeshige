@@ -9,6 +9,8 @@ import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import type { Workout } from "@/lib/types";
 import { formatDurations } from "@/lib/workout/duration";
+import { ConfirmDialog } from "@/components/ui/Sheet";
+import { useToast } from "@/components/ui/Toast";
 
 /** みんなの記録（共有している利用者のみ） */
 export function CommunityView() {
@@ -17,6 +19,10 @@ export function CommunityView() {
   const [error, setError] = useState<string | null>(null);
   const [disabledReason, setDisabledReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // 作成者として確認できた復元コード（この画面を開いている間だけ保持し、保存しない）
+  const [ownerCode, setOwnerCode] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<PublicUser | null>(null);
+  const toast = useToast();
   const today = trainingDateOf();
 
   const load = useCallback(async () => {
@@ -70,8 +76,8 @@ export function CommunityView() {
             {data.users.length === 0 && <p className="text-sm text-muted">まだ誰も共有していません。</p>}
             <ul className="divide-y divide-border">
               {data.users.map((u) => (
-                <li key={u.userId}>
-                  <Link href={`/community/${u.userId}`} className="tap flex items-center gap-3 py-2" data-testid="community-user">
+                <li key={u.userId} className="flex items-center gap-2">
+                  <Link href={`/community/${u.userId}`} className="tap flex min-w-0 flex-1 items-center gap-3 py-2" data-testid="community-user">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-bold text-accent">{u.displayName.slice(0, 1)}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">
@@ -85,10 +91,37 @@ export function CommunityView() {
                     </span>
                     <span className="text-muted">›</span>
                   </Link>
+                  {ownerCode && u.userId !== myId && (
+                    <button type="button" className="btn-danger shrink-0 px-3 py-1.5 text-xs" onClick={() => setDeleting(u)} data-testid="community-delete">
+                      削除
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
+            <OwnerTools ownerCode={ownerCode} onVerified={setOwnerCode} />
           </section>
+
+          <ConfirmDialog
+            open={!!deleting}
+            title={`「${deleting?.displayName ?? ""}」を削除しますか？`}
+            message={`共有されている記録（${deleting?.workoutCount ?? 0}回分）と表示名がサーバーから削除され、みんなの記録に表示されなくなります。元に戻せません。その端末の中の記録は消えません。`}
+            confirmLabel="削除する"
+            danger
+            onConfirm={async () => {
+              const u = deleting;
+              setDeleting(null);
+              if (!u || !ownerCode) return;
+              try {
+                await shareApi.ownerRemoveUser(u.userId, ownerCode);
+                toast(`「${u.displayName}」を削除しました`, "success");
+                await load();
+              } catch (e) {
+                toast(e instanceof Error ? e.message : "削除できませんでした", "error");
+              }
+            }}
+            onClose={() => setDeleting(null)}
+          />
 
           <section className="space-y-2">
             <h2 className="font-semibold">最近のトレーニング</h2>
@@ -99,6 +132,55 @@ export function CommunityView() {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+/** 作成者向け：不要なアカウントの整理（復元コードで確認） */
+function OwnerTools({ ownerCode, onVerified }: { ownerCode: string | null; onVerified: (code: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (ownerCode) {
+    return (
+      <div className="mt-2 flex items-center justify-between rounded-lg bg-card-2 p-2 text-xs text-muted" data-testid="owner-mode">
+        <span>アカウント整理中：不要なアカウントの「削除」を押してください（あなた自身は対象外）</span>
+        <button type="button" className="btn-ghost shrink-0 px-2 py-1 text-xs" onClick={() => onVerified(null)}>
+          終了
+        </button>
+      </div>
+    );
+  }
+  if (!open) {
+    return (
+      <button type="button" className="mt-2 text-xs text-muted underline" onClick={() => setOpen(true)} data-testid="owner-open">
+        アカウントを整理する（作成者のみ）
+      </button>
+    );
+  }
+  const verify = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await shareApi.ownerVerify(code);
+      onVerified(code.trim());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "確認できませんでした");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-2 space-y-2 rounded-lg bg-card-2 p-2">
+      <p className="text-xs text-muted">作成者の復元コードを入力すると、不要なアカウントを削除できます。</p>
+      <div className="flex gap-2">
+        <input className="input text-sm" type="password" autoComplete="off" placeholder="復元コード" value={code} onChange={(e) => setCode(e.target.value)} aria-label="作成者の復元コード" data-testid="owner-code" />
+        <button type="button" className="btn-primary shrink-0 px-3" disabled={busy || !code.trim()} onClick={verify} data-testid="owner-verify">
+          確認
+        </button>
+      </div>
+      {err && <p className="text-xs text-danger">{err}</p>}
     </div>
   );
 }

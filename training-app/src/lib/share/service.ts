@@ -100,6 +100,14 @@ export async function removeUser(kv: KV, userId: string, token: string): Promise
   await kv.srem(USERS, userId);
 }
 
+/** 作成者による削除：本人のトークンなしでプロフィールと記録を削除（呼び出し側で作成者確認済みであること） */
+export async function adminRemoveUser(kv: KV, userId: string): Promise<boolean> {
+  const cur = await getProfile(kv, userId);
+  await kv.del(wKey(userId), uKey(userId));
+  await kv.srem(USERS, userId);
+  return !!cur;
+}
+
 async function requireProfile(kv: KV, userId: string, token: string) {
   const p = await authorize(kv, userId, token);
   if (!p) throw new ShareError(409, "共有が有効になっていません");

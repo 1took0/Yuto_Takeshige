@@ -115,3 +115,36 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
 
   for (const p of [a, b, c]) await p.context().close();
 });
+
+test("作成者だけが不要なアカウントを削除できる（自分は対象外）", async ({ browser }) => {
+  const suffix = Date.now().toString().slice(-5);
+  const oldName = `古い${suffix}`;
+  const ownerName = `作成者${suffix}`;
+  const old = await newUser(browser);
+  await onboard(old, oldName, { share: true });
+  const owner = await newUser(browser);
+  await onboard(owner, ownerName, { importSeed: true, share: true });
+
+  await owner.goto("/community");
+  await expect(owner.getByTestId("community-user").filter({ hasText: oldName })).toBeVisible();
+  // 通常は削除ボタンが無い
+  await expect(owner.getByTestId("community-delete")).toHaveCount(0);
+  await owner.getByTestId("owner-open").click();
+  await owner.getByTestId("owner-code").fill("wrong-code");
+  await owner.getByTestId("owner-verify").click();
+  await expect(owner.getByText("復元コードが違います")).toBeVisible();
+  await expect(owner.getByTestId("community-delete")).toHaveCount(0);
+  await owner.getByTestId("owner-code").fill("e2e-owner");
+  await owner.getByTestId("owner-verify").click();
+  await expect(owner.getByTestId("owner-mode")).toBeVisible();
+  // 自分の行には削除ボタンが出ない
+  const meRow = owner.locator("li").filter({ has: owner.getByTestId("community-user").filter({ hasText: ownerName }) });
+  await expect(meRow.getByTestId("community-delete")).toHaveCount(0);
+  const oldRow = owner.locator("li").filter({ has: owner.getByTestId("community-user").filter({ hasText: oldName }) });
+  await oldRow.getByTestId("community-delete").click();
+  await owner.getByRole("alertdialog").getByRole("button", { name: "削除する" }).click();
+  await expect(owner.getByTestId("community-user").filter({ hasText: oldName })).toHaveCount(0);
+  await expect(owner.getByTestId("community-user").filter({ hasText: ownerName })).toBeVisible();
+  await old.context().close();
+  await owner.context().close();
+});

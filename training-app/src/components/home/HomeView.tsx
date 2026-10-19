@@ -33,9 +33,14 @@ export function HomeView() {
           <div className="mt-2 text-sm text-accent">タップして再開 →</div>
         </Link>
       ) : (
-        <Link href="/start" className="btn-primary w-full py-5 text-xl" data-testid="start">
-          トレーニング開始
-        </Link>
+        <div className="space-y-2">
+          <Link href="/start" className="btn-primary w-full py-5 text-xl" data-testid="start">
+            トレーニング開始
+          </Link>
+          <Link href="/start?manual=1" className="btn-secondary w-full" data-testid="manual-start">
+            メニューを自分で入力して記録
+          </Link>
+        </div>
       )}
 
       <section className="card p-3">

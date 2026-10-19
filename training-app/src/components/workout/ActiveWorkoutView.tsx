@@ -10,7 +10,7 @@ import { AddExerciseSheet } from "./AddExerciseSheet";
 import { RestTimerBar } from "@/components/timer/RestTimerBar";
 import { ConfirmDialog, Sheet } from "@/components/ui/Sheet";
 import { useSettings } from "@/hooks/useSettings";
-import { addExercise, finalizeWorkout, progressOf } from "@/lib/workout/edit";
+import { addCardio, addExercise, finalizeWorkout, progressOf } from "@/lib/workout/edit";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { clearTimer } from "@/hooks/useTimer";
@@ -140,10 +140,23 @@ export function ActiveWorkoutView() {
 
       {!focusedId && (
         <>
+          {w.exercises.length === 0 && w.cardio.length === 0 && (
+            <p className="rounded-xl bg-card-2 p-3 text-sm text-muted" data-testid="manual-empty">
+              まだ種目がありません。「＋ 種目を追加」「＋ 有酸素を追加」で、やった（やる）メニューを入力してください。
+            </p>
+          )}
           <button type="button" className="btn-secondary w-full" onClick={() => setShowAdd(true)} data-testid="add-exercise">
             ＋ 種目を追加
           </button>
           {w.cardio.filter((c) => c.role === "main").map((c) => <CardioCard key={c.id} entry={c} mutate={mutate} timerLink />)}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className="btn-secondary text-sm" onClick={() => mutate((x) => addCardio(x, "treadmill"))} data-testid="add-cardio-treadmill">
+              ＋ 有酸素を追加（トレッドミル）
+            </button>
+            <button type="button" className="btn-secondary text-sm" onClick={() => mutate((x) => addCardio(x, "bike"))} data-testid="add-cardio-bike">
+              ＋ 有酸素を追加（バイク）
+            </button>
+          </div>
           <div className="card p-3">
             <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowCoach((v) => !v)} aria-expanded={showCoach}>
               <span className="font-semibold">💬 コーチに相談（「あと20分しかない」「このマシンがない」など）</span>

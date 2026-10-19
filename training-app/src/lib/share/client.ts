@@ -49,6 +49,10 @@ export const shareApi = {
   put: (p: Profile, ws: Workout[]) => call<{ saved: number; rejected: number }>("/api/share/workouts", "PUT", { userId: p.userId, token: p.shareToken, workouts: ws.map(toShareable) }),
   remove: (p: Profile, ids: string[]) => call("/api/share/workouts", "DELETE", { userId: p.userId, token: p.shareToken, workoutIds: ids }),
   prune: (p: Profile, keepIds: string[]) => call<{ removed: number }>("/api/share/workouts", "POST", { userId: p.userId, token: p.shareToken, keepIds }),
+  /** 作成者の確認（復元コード） */
+  ownerVerify: (code: string) => call<{ ok: true }>("/api/share/admin", "POST", { code }),
+  /** 作成者によるアカウント削除 */
+  ownerRemoveUser: (userId: string, code: string) => call<{ ok: true; existed: boolean }>(`/api/share/users/${encodeURIComponent(userId)}`, "DELETE", { code }),
 };
 
 const CHUNK = 20;

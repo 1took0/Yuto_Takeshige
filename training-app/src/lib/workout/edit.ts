@@ -1,7 +1,8 @@
-import type { ExerciseDef, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
+import type { CardioEntry, CardioMachine, ExerciseDef, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { getExercise } from "@/lib/catalog/exercises";
 import { newId } from "@/lib/id";
 import { computeDurations } from "./duration";
+import { trainingDateOf } from "@/lib/date/trainingDay";
 
 /**
  * ワークアウト編集の純粋関数群
@@ -224,4 +225,29 @@ function finalizeSets(w: Workout, endedAt: string): Workout {
 /** 保存後の修正用：completed に戻す（active には戻さない） */
 export function reopenForEdit(w: Workout): Workout {
   return { ...w, updatedAt: new Date().toISOString() };
+}
+
+/** メニューを自動作成せず、自分で種目を入れていく空のトレーニング */
+export function newManualWorkout(storeId: string, storeLabel: string, now = new Date()): Workout {
+  const iso = now.toISOString();
+  return {
+    id: newId("w"),
+    trainingDate: trainingDateOf(now),
+    startedAt: iso,
+    storeId,
+    storeLabel,
+    exercises: [],
+    cardio: [],
+    status: "active",
+    source: "app",
+    ui: { focusedExerciseId: null },
+    createdAt: iso,
+    updatedAt: iso,
+  };
+}
+
+/** 有酸素を追加（計画なし。実績だけを入力する） */
+export function addCardio(w: Workout, machine: CardioMachine): Workout {
+  const entry: CardioEntry = { id: newId("cardio"), machine, plan: [], completed: false, role: "main", rationale: "自分で追加" };
+  return touch({ ...w, cardio: [...w.cardio, entry] });
 }

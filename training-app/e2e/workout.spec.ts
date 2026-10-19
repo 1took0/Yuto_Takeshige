@@ -385,3 +385,26 @@ test("種目を自分で作り、トレーニングで使える。削除して�
   await page.getByTestId("history-item").first().click();
   await expect(page.getByTestId("detail-exercise").filter({ hasText: "ダンベルプルオーバー" })).toBeVisible();
 });
+
+test("メニューを作らずに自分で入力して記録できる", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("manual-start").click();
+  await expect(page.getByRole("heading", { name: "自分でメニューを入力" })).toBeVisible();
+  await page.getByTestId("manual-create").click();
+  await expect(page.getByTestId("manual-empty")).toBeVisible();
+  // 種目を検索して追加
+  await page.getByTestId("add-exercise").click();
+  await page.getByLabel("種目検索").fill("チェストプレス");
+  await page.getByRole("button", { name: /^チェストプレス/ }).first().click();
+  const card = page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" });
+  await expect(card).toBeVisible();
+  // 有酸素も追加できる
+  await page.getByTestId("add-cardio-treadmill").click();
+  await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toBeVisible();
+  await card.getByRole("button", { name: /セット1を完了にする/ }).click();
+  await page.getByRole("button", { name: "休憩タイマーを閉じる" }).click();
+  await page.getByTestId("finish").click();
+  await page.getByTestId("finish-confirm").click();
+  await expect(page).toHaveURL(/\/history\//);
+  await expect(page.getByTestId("detail-exercise").filter({ hasText: "チェストプレス" })).toBeVisible();
+});
