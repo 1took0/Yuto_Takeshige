@@ -24,6 +24,20 @@ const CONFIRMED: Record<BuiltinStoreId, string[]> = {
     "mat",
     "bike",
     "treadmill",
+    // LifeFit 公式の店舗ページのマシンリスト（2026-10-20 確認）
+    "leg_extension_machine",
+    "adductor_machine",
+    "smith_machine",
+    "power_rack",
+    "bench",
+    "ez_bar",
+    "plate_chest_press",
+    "plate_shoulder_press",
+    "plate_lat_pulldown",
+    "plate_row_machine",
+    "rotary_torso",
+    "chin_dip_station",
+    "ab_bench",
   ],
   "higashiyama-nijo": [
     "leg_press_machine",
@@ -52,6 +66,31 @@ const CONFIRMED: Record<BuiltinStoreId, string[]> = {
     "back_extension",
     "pulldown_trainer",
     "abdominal_machine",
+    // LifeFit 公式の店舗ページのマシンリスト（2026-10-20 確認）
+    "leg_press_machine",
+    "leg_curl_machine",
+    "leg_extension_machine",
+    "abductor_machine",
+    "adductor_machine",
+    "chest_press_machine",
+    "lat_pulldown_machine",
+    "shoulder_press_machine",
+    "cable",
+    "bike",
+    "treadmill",
+    "smith_machine",
+    "power_rack",
+    "bench",
+    "ez_bar",
+    "plate_chest_press",
+    "converging_chest_press",
+    "plate_shoulder_press",
+    "plate_lat_pulldown",
+    "plate_leg_press_45",
+    "hack_squat_machine",
+    "chin_dip_station",
+    "leg_raise_station",
+    "ab_bench",
   ],
 };
 
@@ -64,26 +103,10 @@ const ABSENT: Record<BuiltinStoreId, string[]> = {
 
 /** 推測で確定しないが、計画対象として一覧に出す器具（未確認扱い） */
 const UNCONFIRMED_CANDIDATES: Record<BuiltinStoreId, string[]> = {
-  ichijoji: ["leg_extension_machine", "adductor_machine", "cable", "bench"],
-  "higashiyama-nijo": ["cable", "bench"],
-  "sanjo-ohashi": [
-    "leg_press_machine",
-    "leg_curl_machine",
-    "leg_extension_machine",
-    "abductor_machine",
-    "adductor_machine",
-    "chest_press_machine",
-    "lat_pulldown_machine",
-    "seated_row_machine",
-    "shoulder_press_machine",
-    "triceps_machine",
-    "biceps_curl_machine",
-    "dumbbells",
-    "mat",
-    "bike",
-    "treadmill",
-    "cable",
-  ],
+  ichijoji: ["cable"],
+  // 公式の店舗ページにマシンリストが無いため、LifeFit のほとんどの店舗にある器具を未確認で出す
+  "higashiyama-nijo": ["cable", "bench", "smith_machine", "power_rack"],
+  "sanjo-ohashi": ["seated_row_machine", "triceps_machine", "biceps_curl_machine", "dumbbells", "mat"],
 };
 
 export function defaultStoreEquipment(now = new Date().toISOString()): StoreEquipment[] {

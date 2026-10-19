@@ -3,7 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect } from "react";
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from "@/lib/db/repo";
 import { allStores, setCustomStores } from "@/lib/catalog/stores";
-import { allExercises, setCustomExercises } from "@/lib/catalog/exercises";
+import { allExercises, setCustomExercises, setDeletedExercises } from "@/lib/catalog/exercises";
 import type { Settings } from "@/lib/types";
 
 export function applyTheme(theme: Settings["theme"]) {
@@ -23,6 +23,7 @@ export function useSettings() {
   // 店舗名・種目をどこからでも同期的に引けるよう、追加分をレジストリに反映
   setCustomStores(settings.customStores);
   setCustomExercises(settings.customExercises);
+  setDeletedExercises(settings.deletedExerciseIds);
   useEffect(() => {
     applyTheme(settings.theme);
     if (settings.theme !== "system") return;
@@ -46,5 +47,6 @@ export function useStores() {
 export function useExercises() {
   const { settings } = useSettings();
   setCustomExercises(settings.customExercises);
+  setDeletedExercises(settings.deletedExerciseIds);
   return allExercises();
 }

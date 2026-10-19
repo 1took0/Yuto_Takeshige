@@ -295,6 +295,8 @@ export interface Settings {
   customStores?: StoreDef[];
   /** 利用者が作成した種目 */
   customExercises?: ExerciseDef[];
+  /** 一覧から削除した標準の種目ID（過去の記録の種目名は残る。設定から元に戻せる） */
+  deletedExerciseIds?: string[];
   seedVersion?: number;
   /** 初回設定（名前・目標・履歴取り込み）が済んでいるか */
   onboarded?: boolean;

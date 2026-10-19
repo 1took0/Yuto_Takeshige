@@ -614,3 +614,29 @@ test("タイマー画面：±10秒・±30秒で調整でき、スキップ・リ
   await expect(page.getByTestId("timer-toggle").locator("svg")).toBeVisible();
   await expect(page.getByTestId("timer-toggle")).not.toContainText("▶");
 });
+
+test("種目一覧の × で標準の種目を削除でき、種目の追加に出なくなる。元に戻せる", async ({ page }) => {
+  await page.goto("/settings#exercises");
+  const list = page.getByTestId("custom-ex-list");
+  await expect(list).toContainText("ベンチプレス");
+  await expect(list).toContainText("スミスマシンスクワット");
+  await list.getByRole("button", { name: "ペックフライを削除" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
+  await expect(list.getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(0);
+  await expect(page.getByTestId("deleted-ex")).toContainText("1件");
+
+  // トレーニング中の「種目を追加」にも出ない。そこからも × で削除できる
+  await startWorkout(page);
+  await page.getByTestId("add-exercise").click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("button", { name: /^ペックフライ/ })).toHaveCount(0);
+  await sheet.getByRole("button", { name: "ベンチプレスを一覧から削除", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
+  await expect(sheet.getByRole("button", { name: "ベンチプレスを一覧から削除", exact: true })).toHaveCount(0);
+
+  // 設定から元に戻す
+  await page.goto("/settings#exercises");
+  await page.getByTestId("deleted-ex").locator("summary").click();
+  await page.getByTestId("deleted-ex").locator("li", { hasText: "ペックフライ" }).getByRole("button", { name: "元に戻す" }).click();
+  await expect(page.getByTestId("custom-ex-list").getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(1);
+});

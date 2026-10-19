@@ -8,12 +8,16 @@ import { availableExercises } from "@/lib/planner";
 import { musclesLabel, REGION_LABEL } from "@/lib/catalog/muscles";
 import { useExercises } from "@/hooks/useSettings";
 import { CustomExerciseForm } from "@/components/settings/CustomExerciseForm";
+import { DeleteExerciseDialog } from "@/components/settings/CustomExerciseManager";
+import { CloseIcon } from "@/components/ui/Icons";
+import type { ExerciseDef } from "@/lib/types";
 
 export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = [] }: { open: boolean; onClose: () => void; storeId: StoreId; onAdd: (exerciseId: string) => void; excludedIds?: string[] }) {
   const equipment = useLiveQuery(() => listStoreEquipment(storeId), [storeId], []);
   const [q, setQ] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [removing, setRemoving] = useState<ExerciseDef | null>(null);
   const all = useExercises();
   const list = useMemo(() => {
     const avail = availableExercises(equipment, storeId, excludedIds);
@@ -32,10 +36,10 @@ export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = 
       </label>
       <ul className="divide-y divide-border">
         {list.map(({ def, confirmed, unavailable }) => (
-          <li key={def.id}>
+          <li key={def.id} className="flex items-center gap-1">
             <button
               type="button"
-              className="tap flex w-full items-center gap-3 py-2 text-left"
+              className="tap flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
               onClick={() => {
                 onAdd(def.id);
                 onClose();
@@ -55,6 +59,9 @@ export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = 
               </div>
               <span className="text-accent">＋</span>
             </button>
+            <button type="button" className="tap flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:text-danger" aria-label={`${def.name}を一覧から削除`} onClick={() => setRemoving(def)}>
+              <CloseIcon className="h-4 w-4" />
+            </button>
           </li>
         ))}
         {!list.length && <li className="py-6 text-center text-sm text-muted">該当する種目がありません</li>}
@@ -69,6 +76,7 @@ export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = 
           }
         }}
       />
+      <DeleteExerciseDialog exercise={removing} onClose={() => setRemoving(null)} />
     </Sheet>
   );
 }

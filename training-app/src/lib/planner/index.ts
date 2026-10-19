@@ -1,7 +1,7 @@
 import type { BodyRegion, ExerciseDef, FocusArea, Goals, IntakeAnswers, MenuPreferences, MuscleGroup, Settings, StoreEquipment, Workout, WorkoutExercise } from "@/lib/types";
 import { EQUIPMENT_STYLE_LABEL, INTENSITY_LABEL, isNovice, prefsOrEmpty } from "@/lib/preferences";
 import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
-import { allExercises, customExercises, exerciseName, getExercise } from "@/lib/catalog/exercises";
+import { allExercises, customExercises, exerciseName, getExercise, isExerciseDeleted } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
 import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
@@ -220,7 +220,7 @@ export function generatePlan(input: PlanInput): PlanResult {
     let chosen: Candidate | null = null;
     for (const exId of slot.candidates) {
       const def = getExercise(exId);
-      if (!def || excluded.has(exId) || usedExercise.has(exId)) continue;
+      if (!def || excluded.has(exId) || isExerciseDeleted(exId) || usedExercise.has(exId)) continue;
       // やりたくない種目（希望）は自動作成では選ばない（同じ枠の別の種目を使う）
       if (disliked.has(exId)) continue;
       const av = availability(storeEquipment, store, def.equipmentId);

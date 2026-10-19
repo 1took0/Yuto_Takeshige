@@ -91,6 +91,48 @@ describe("店舗の追加・変更・削除", () => {
   });
 });
 
+describe("標準の種目の削除", () => {
+  it("一覧・種目の追加・自動作成から消え、記録の名前は残る。元に戻せる", async () => {
+    const { deleteExercise, restoreExercise, getSettings } = await import("./repo");
+    const { allExercises, getExercise, exerciseName } = await import("@/lib/catalog/exercises");
+    const { generatePlan, availableExercises } = await import("@/lib/planner");
+    await ensureSeeded();
+    const plan = async () =>
+      generatePlan({
+        intake: { storeId: "ichijoji", timeLimitMin: null, condition: 4, soreness: false, soreRegions: [], pain: { present: false }, focus: "auto", cardio: "walk" },
+        history: buildSeedWorkouts(),
+        storeEquipment: await listStoreEquipment(),
+        settings: { excludedExerciseIds: [] },
+        now: new Date("2026-10-18T10:00:00+09:00"),
+      }).workout.exercises.map((e) => e.exerciseId);
+    expect(await plan()).toContain("leg_press");
+
+    await deleteExercise("leg_press");
+    expect((await getSettings()).deletedExerciseIds).toEqual(["leg_press"]);
+    expect(allExercises().some((e) => e.id === "leg_press")).toBe(false);
+    expect(availableExercises(await listStoreEquipment(), "ichijoji").some((a) => a.def.id === "leg_press")).toBe(false);
+    expect(await plan()).not.toContain("leg_press");
+    expect(getExercise("leg_press")).toBeDefined();
+    expect(exerciseName("leg_press")).toBe("レッグプレス");
+
+    await restoreExercise("leg_press");
+    expect((await getSettings()).deletedExerciseIds).toEqual([]);
+    expect(allExercises().some((e) => e.id === "leg_press")).toBe(true);
+  });
+
+  it("ベンチプレスとLifeFitの器具が標準で入っている", async () => {
+    const { getExercise } = await import("@/lib/catalog/exercises");
+    const { availableExercises } = await import("@/lib/planner");
+    await ensureSeeded();
+    expect(getExercise("bb_bench_press")?.name).toBe("ベンチプレス");
+    const ichijoji = availableExercises(await listStoreEquipment(), "ichijoji");
+    expect(ichijoji.find((a) => a.def.id === "bb_bench_press")?.confirmed).toBe(true);
+    expect(ichijoji.find((a) => a.def.id === "smith_squat")?.confirmed).toBe(true);
+    const sanjo = availableExercises(await listStoreEquipment(), "sanjo-ohashi");
+    expect(sanjo.find((a) => a.def.id === "hack_squat")?.confirmed).toBe(true);
+  });
+});
+
 describe("自作の種目", () => {
   const input = { name: "ケーブルクランチ", equipmentId: "other", primary: ["abs" as const], loadType: "weight" as const, unilateral: false, defaultSets: 3, defaultReps: 15, increment: 2.5, restSec: 45, notes: "背中を丸める\n反動を使わない", autoMenu: true };
 
