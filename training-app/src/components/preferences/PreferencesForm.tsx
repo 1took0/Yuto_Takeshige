@@ -33,7 +33,7 @@ interface FormState {
  * - first: はじめてのヒアリング（スキップ可）
  * - edit: 設定画面からの見直し
  */
-export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDone: () => void }) {
+export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "edit"; onDone: () => void; onCancel?: () => void }) {
   const allEx = useExercises();
   const [form, setForm] = useState<FormState | null>(null);
   const [goalsBase, setGoalsBase] = useState<Goals | null>(null);
@@ -128,11 +128,11 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
   return (
     <div className="space-y-5 pb-28" data-testid="prefs-form">
       <header>
-        <h1 className="text-2xl font-bold">{mode === "first" ? "はじめてのヒアリング" : "メニューの希望"}</h1>
+        <h1 className="text-2xl font-bold">{mode === "first" ? "はじめてのヒアリング" : "ヒアリング結果の編集"}</h1>
         <p className="text-sm text-muted">
           {mode === "first"
             ? "あなたに合ったメニューを作るために、いくつか質問します（1分ほど）。答えた内容は毎回のメニュー作成に使い、あとから設定画面やコーチへの一言で変えられます。"
-            : "毎回のメニュー作成で考慮する希望です。コーチに「次から〇〇はやりたくない」と伝えても変わります。"}
+            : "最初のトレーニングで答えた内容を変更できます。毎回のメニュー作成で考慮し、保存すると次のメニュー作成から反映されます。"}
         </p>
       </header>
 
@@ -153,8 +153,8 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
             columns={3}
           />
           <div className="flex flex-wrap gap-2">
-            <NumberField label="体重" unit="kg" value={form.bodyWeightKg} onChange={(v) => set("bodyWeightKg")(v)} step={1} min={25} max={250} size="sm" className="w-36" placeholder="未入力" />
-            <NumberField label="年齢" unit="歳" value={form.age} onChange={(v) => set("age")(v)} step={1} min={10} max={100} size="sm" className="w-32" placeholder="未入力" />
+            <NumberField label="体重" unit="kg" value={form.bodyWeightKg} onChange={(v) => set("bodyWeightKg")(v)} step={1} min={25} max={250} size="sm" className="w-40" placeholder="体重" />
+            <NumberField label="年齢" unit="歳" value={form.age} onChange={(v) => set("age")(v)} step={1} min={10} max={100} size="sm" className="w-36" placeholder="年齢" />
           </div>
           <p className="text-[11px] text-muted">初めての種目の重量の目安と、重量を上げるペースに使います。この端末の中だけに保存し、共有しません。</p>
         </div>
@@ -207,6 +207,11 @@ export function PreferencesForm({ mode, onDone }: { mode: "first" | "edit"; onDo
           {mode === "first" && (
             <button type="button" className="btn-secondary px-4 py-4" disabled={busy} onClick={() => save(true)} data-testid="prefs-skip">
               スキップ
+            </button>
+          )}
+          {mode === "edit" && onCancel && (
+            <button type="button" className="btn-secondary px-4 py-4" disabled={busy} onClick={onCancel} data-testid="prefs-cancel">
+              キャンセル
             </button>
           )}
           <button type="button" className="btn-primary flex-1 py-4 text-lg" disabled={busy} onClick={() => save(false)} data-testid="prefs-submit">

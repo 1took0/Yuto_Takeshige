@@ -9,6 +9,7 @@ export function PreferencesClient() {
   return (
     <PreferencesForm
       mode="edit"
+      onCancel={() => router.push("/settings")}
       onDone={() => {
         toast("保存しました。次のメニュー作成から反映します");
         router.push("/settings");

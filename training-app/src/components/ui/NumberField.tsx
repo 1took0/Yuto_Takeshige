@@ -80,7 +80,8 @@ export function NumberField({ value, onChange, step = 5, min = 0, max = 999, uni
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
         />
-        {unit && <span className="shrink-0 pr-1.5 text-[11px] text-muted">{unit}</span>}
+        {/* 数字と単位がくっつかないようにすき間を空ける。未入力のときは単位を出さない */}
+        {unit && text.trim() !== "" && <span className="shrink-0 pl-1 pr-1.5 text-[11px] text-muted">{unit}</span>}
       </div>
       <button type="button" className={`tap ${btn} ${h} shrink-0 border-l border-border text-muted active:bg-card-2`} onClick={() => bump(step)} aria-label={`${label ?? ""}を${step}増やす`}>
         ＋

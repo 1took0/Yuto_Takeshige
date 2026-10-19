@@ -44,7 +44,17 @@ test("初回ヒアリングの希望とコーチに伝えた希望がメニュ�
   await page.goto("/workout");
   await expect(page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" })).toHaveCount(0);
   await page.goto("/settings");
-  await expect(page.getByTestId("prefs-summary")).toContainText("除外：レッグプレス・チェストプレス");
+  await expect(page.getByTestId("prefs-summary")).toContainText("やりたくない種目：レッグプレス・チェストプレス");
+  await expect(page.getByTestId("prefs-summary")).toContainText("経験：はじめて");
+  // 設定画面からヒアリング結果を編集できる
+  await page.getByTestId("prefs-edit").click();
+  await expect(page.getByRole("heading", { name: "ヒアリング結果の編集" })).toBeVisible();
+  await page.getByRole("radio", { name: "半年未満" }).click();
+  await page.getByRole("radiogroup", { name: "有酸素運動の希望" }).getByRole("radio", { name: "ウォーキング" }).click();
+  await page.getByTestId("prefs-submit").click();
+  await expect(page).toHaveURL(/\/settings/);
+  await expect(page.getByTestId("prefs-summary")).toContainText("経験：半年未満");
+  await expect(page.getByTestId("prefs-summary")).toContainText("有酸素：ウォーキング");
 
   // 2回目以降はヒアリングなしで今日のコンディションから
   await page.goto("/start");

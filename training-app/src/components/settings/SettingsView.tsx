@@ -13,8 +13,9 @@ import { useExercises, useStores } from "@/hooks/useSettings";
 import { EQUIPMENT } from "@/lib/catalog/equipment";
 import { CustomExerciseManager } from "./CustomExerciseManager";
 import type { Goals, MenuPreferences, StoreId } from "@/lib/types";
-import { CARDIO_CHOICE_LABEL, EXPERIENCE_LABEL } from "@/lib/preferences";
-import { preferenceSummary } from "@/lib/planner";
+import { CARDIO_CHOICE_LABEL, EQUIPMENT_STYLE_LABEL, EXPERIENCE_LABEL, INTENSITY_LABEL } from "@/lib/preferences";
+import { REGION_LABEL } from "@/lib/catalog/muscles";
+import { exerciseName } from "@/lib/catalog/exercises";
 import { cardioToCSV, downloadText, parseImport, setsToCSV, toJSON } from "@/lib/export";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
@@ -73,6 +74,13 @@ export function SettingsView() {
       <h1 className="text-2xl font-bold">設定</h1>
 
       <ShareSettings />
+
+      <Section title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
+        <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />
+        <button type="button" className="btn-primary mt-2 w-full" onClick={() => router.push("/preferences")} data-testid="prefs-edit">
+          ヒアリング結果を編集する
+        </button>
+      </Section>
 
       <Section title="表示">
         <div className="flex gap-2">
@@ -185,13 +193,6 @@ export function SettingsView() {
         />
       </Section>
 
-      <Section title="メニューの希望" hint="経験・きつさ・器具・有酸素・好きな種目／やりたくない種目など。コーチに「次から〇〇はやりたくない」と伝えても更新されます。">
-        <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />
-        <button type="button" className="btn-secondary mt-2 w-full" onClick={() => router.push("/preferences")} data-testid="prefs-edit">
-          希望を見直す
-        </button>
-      </Section>
-
       <Section title="アクセス保護" hint="サーバーに APP_PASSWORD を設定している場合、この端末のログイン状態を解除できます。">
         <button
           type="button"
@@ -273,23 +274,26 @@ function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPrefere
   const rows: [string, string][] = [];
   if (prefs.experience) rows.push(["経験", EXPERIENCE_LABEL[prefs.experience]]);
   if (prefs.timeLimitMin !== undefined) rows.push(["時間", prefs.timeLimitMin === null ? "制限なし" : `${prefs.timeLimitMin}分`]);
+  if (prefs.intensity) rows.push(["きつさ", INTENSITY_LABEL[prefs.intensity]]);
+  if (prefs.equipmentStyle || goals.preferDumbbell) rows.push(["器具", EQUIPMENT_STYLE_LABEL[goals.preferDumbbell ? "dumbbell" : prefs.equipmentStyle!]]);
   if (prefs.cardio) rows.push(["有酸素", CARDIO_CHOICE_LABEL[prefs.cardio]]);
+  if (goals.priorityRegions.length) rows.push(["多めに", goals.priorityRegions.map((r) => REGION_LABEL[r]).join("・")]);
+  if (prefs.lessRegions?.length) rows.push(["控えめに", prefs.lessRegions.map((r) => REGION_LABEL[r]).join("・")]);
+  if (goals.favoriteExerciseIds.length) rows.push(["やりたい種目", goals.favoriteExerciseIds.map(exerciseName).join("・")]);
+  if (prefs.dislikedExerciseIds?.length) rows.push(["やりたくない種目", prefs.dislikedExerciseIds.map(exerciseName).join("・")]);
+  if (prefs.chronicPain) rows.push(["気をつけたい痛み", prefs.chronicPain]);
   if (prefs.bodyWeightKg || prefs.age) rows.push(["体格", [prefs.sex === "male" ? "男性" : prefs.sex === "female" ? "女性" : "", prefs.bodyWeightKg ? `${prefs.bodyWeightKg}kg` : "", prefs.age ? `${prefs.age}歳` : ""].filter(Boolean).join("・")]);
-  const applied = preferenceSummary(prefs, goals);
   const notes = prefs.notes ?? [];
-  if (!rows.length && !applied.length && !notes.length) return <p className="text-sm text-muted">まだ設定されていません。</p>;
+  if (!rows.length && !notes.length) return <p className="text-sm text-muted">まだ設定されていません。</p>;
   return (
     <div className="space-y-2 text-sm" data-testid="prefs-summary">
-      {(rows.length > 0 || applied.length > 0) && (
+      {rows.length > 0 && (
         <ul className="space-y-0.5">
           {rows.map(([k, v]) => (
             <li key={k}>
               <span className="text-muted">{k}：</span>
               {v}
             </li>
-          ))}
-          {applied.map((a) => (
-            <li key={a}>{a}</li>
           ))}
         </ul>
       )}

@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) => console.warn("SW 登録失敗", e));
   }, []);
 
-  const hideNav = pathname.startsWith("/timer/") || pathname === "/start" || pathname === "/welcome" || pathname === "/login" || pathname === "/restore";
+  const hideNav = pathname.startsWith("/timer/") || pathname === "/start" || pathname === "/welcome" || pathname === "/login" || pathname === "/restore" || pathname === "/preferences";
 
   return (
     <ToastProvider>
