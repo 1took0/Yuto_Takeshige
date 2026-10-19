@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { disableSharing } from "@/lib/share/client";
 import { musclesLabel } from "@/lib/catalog/muscles";
+import { ChipGroup } from "@/components/ui/Chips";
 
 export function SettingsView() {
   const { settings, update } = useSettings();
@@ -92,6 +93,17 @@ export function SettingsView() {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={settings.keepAwake} onChange={(e) => update({ keepAwake: e.target.checked })} /> タイマー中は画面を消灯しない
           </label>
+        </div>
+        <div className="mt-3">
+          <div className="mb-1 text-xs font-semibold text-muted">セット間の休憩タイマー</div>
+          <ChipGroup
+            label="セット間の休憩時間"
+            options={REST_OPTIONS.map((v) => ({ value: v, label: v === null ? "種目ごと" : v % 60 === 0 ? `${v / 60}分` : `${v}秒` }))}
+            value={settings.restTimerSec ?? null}
+            onChange={(v) => update({ restTimerSec: v })}
+            columns={4}
+          />
+          <p className="mt-1 text-[11px] text-muted">セットを完了すると自動で始まります（各種目の最終セットの後は出ません）。「種目ごと」は種目ごとの標準の休憩時間です。休憩中は ±10秒 で調整できます。</p>
         </div>
       </Section>
 
@@ -236,6 +248,8 @@ export function SettingsView() {
     </div>
   );
 }
+
+const REST_OPTIONS: (number | null)[] = [null, 30, 45, 60, 90, 120, 150, 180];
 
 function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPreferences }) {
   const rows: [string, string][] = [];

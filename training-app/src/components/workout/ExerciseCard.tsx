@@ -20,7 +20,8 @@ interface Props {
   focused: boolean;
   onToggleCollapse: () => void;
   onFocus: () => void;
-  onStartRest?: (sec: number) => void;
+  /** セット完了時の休憩タイマー（null は閉じる：最終セットのとき） */
+  onStartRest?: (sec: number | null) => void;
   /** 履歴編集モード（スキップなどは非表示） */
   editOnly?: boolean;
   /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
@@ -120,7 +121,11 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                 onChange={(patch) => mutate((w) => updateSet(w, e.id, s.id, patch))}
                 onToggle={() => {
                   mutate((w) => toggleSetCompleted(w, e.id, s.id));
-                  if (!s.completed && onStartRest && e.restSec > 0) onStartRest(e.restSec);
+                  if (!s.completed && onStartRest) {
+                    // この種目の最終セットを終えたときは休憩タイマーを出さない（出ていれば閉じる）
+                    const remaining = e.sets.filter((x) => x.id !== s.id && !x.excluded && !x.completed).length;
+                    onStartRest(remaining > 0 ? e.restSec : null);
+                  }
                 }}
                 onRemove={() => handleRemoveSet(s)}
                 onExclude={(ex) => mutate((w) => setExcluded(w, e.id, s.id, ex))}

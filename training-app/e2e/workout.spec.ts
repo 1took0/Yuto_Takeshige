@@ -459,3 +459,44 @@ test("種目カード：線画のゴミ箱・フォームは閉じた状態・�
   await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
   await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);
 });
+
+test("休憩タイマー：設定した時間で始まり ±10秒で調整でき、最終セットの後は出ない", async ({ page }) => {
+  // 設定で休憩時間を1分にする（保存を確かめてから進む）
+  await page.goto("/settings");
+  const oneMin = page.getByRole("radiogroup", { name: "セット間の休憩時間" }).getByRole("radio", { name: "1分" });
+  await expect(async () => {
+    if ((await oneMin.getAttribute("aria-checked")) !== "true") await oneMin.click();
+    await page.waitForTimeout(300);
+    await page.reload();
+    await expect(oneMin).toHaveAttribute("aria-checked", "true", { timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
+
+  await startWorkout(page);
+  const card = page.getByTestId("exercise-card").first();
+  const setCount = await card.getByTestId("set-row").count();
+  expect(setCount).toBeGreaterThanOrEqual(2);
+  await card.getByRole("button", { name: "セット1を完了にする" }).click();
+  const timer = page.getByTestId("rest-timer");
+  await expect(timer).toBeVisible();
+  const remaining = async () => {
+    const t = (await timer.locator(".text-2xl").textContent())!.trim();
+    const [m, s] = t.split(":").map(Number);
+    return m * 60 + s;
+  };
+  const r0 = await remaining();
+  expect(r0).toBeGreaterThan(50);
+  expect(r0).toBeLessThanOrEqual(60);
+  await timer.getByRole("button", { name: "10秒延長" }).click();
+  expect(await remaining()).toBeGreaterThan(r0 + 5);
+  await timer.getByRole("button", { name: "10秒短くする" }).click();
+  await timer.getByRole("button", { name: "10秒短くする" }).click();
+  expect(await remaining()).toBeLessThan(r0 - 5);
+
+  // 残りのセットを終える。最終セットの後はタイマーが閉じる
+  for (let i = 2; i < setCount; i++) {
+    await card.getByRole("button", { name: `セット${i}を完了にする` }).click();
+    await expect(timer).toBeVisible();
+  }
+  await card.getByRole("button", { name: `セット${setCount}を完了にする` }).click();
+  await expect(timer).toHaveCount(0);
+});

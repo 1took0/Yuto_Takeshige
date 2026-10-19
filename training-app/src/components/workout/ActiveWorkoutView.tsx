@@ -138,7 +138,16 @@ export function ActiveWorkoutView() {
             focused={focusedId === e.id}
             onToggleCollapse={() => toggleCollapse(e.id)}
             onFocus={() => setFocus(focusedId === e.id ? null : e.id)}
-            onStartRest={(sec) => setRest((r) => ({ sec, nonce: (r?.nonce ?? 0) + 1 }))}
+            onStartRest={(sec) => {
+              if (sec === null) {
+                setRest(null);
+                clearTimer("rest");
+                return;
+              }
+              // 設定で休憩時間を決めていればそれを使い、なければ種目ごとの標準
+              const s = settings?.restTimerSec ?? sec;
+              if (s > 0) setRest((r) => ({ sec: s, nonce: (r?.nonce ?? 0) + 1 }));
+            }}
           />
         );
       })}

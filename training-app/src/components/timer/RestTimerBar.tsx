@@ -31,8 +31,11 @@ export function RestTimerBar({ seconds, nonce, sound, vibration, onClose }: { se
           <div className="text-xs text-muted">{v.finished ? "休憩終了！次のセットへ" : "休憩中"}</div>
           <div className="text-2xl font-bold tabular">{formatDuration(v.remainingSec)}</div>
         </div>
-        <button type="button" className="btn-secondary px-3" onClick={() => t.adjust(30)} aria-label="30秒延長">
-          +30
+        <button type="button" className="btn-secondary px-2.5" onClick={() => t.adjust(-10)} aria-label="10秒短くする" disabled={v.finished}>
+          −10
+        </button>
+        <button type="button" className="btn-secondary px-2.5" onClick={() => t.adjust(10)} aria-label="10秒延長">
+          +10
         </button>
         <button type="button" className="btn-secondary px-3" onClick={t.toggle} aria-label={t.state.status === "running" ? "一時停止" : "再開"}>
           {t.state.status === "running" ? "❚❚" : "▶"}

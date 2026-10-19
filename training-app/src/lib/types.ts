@@ -279,6 +279,8 @@ export interface Settings {
   sound: boolean;
   vibration: boolean;
   keepAwake: boolean;
+  /** セット間の休憩タイマーの時間（秒）。未設定・null は種目ごとの標準 */
+  restTimerSec?: number | null;
   /** 自動プランから除外する種目ID */
   excludedExerciseIds: string[];
   /** 利用者が追加した店舗 */
