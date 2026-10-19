@@ -1,4 +1,5 @@
 "use client";
+import { CloseIcon, PauseIcon, PlayIcon, ResetIcon, SkipIcon } from "@/components/ui/Icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -226,22 +227,27 @@ export function IntervalTimerView({ machine, entryId }: { machine: TimerType; en
       {/* 操作 */}
       <section className="grid grid-cols-4 gap-2">
         <button type="button" className={`col-span-2 py-5 text-xl ${running ? "btn-secondary" : "btn-primary"}`} onClick={toggle} disabled={v.finished} data-testid="timer-toggle">
-          {t.state.status === "idle" ? "▶ スタート" : running ? "❚❚ 一時停止" : "▶ 再開"}
+          <span className="inline-flex items-center justify-center gap-2">
+            {running ? <PauseIcon className="h-6 w-6" /> : <PlayIcon className="h-6 w-6" />}
+            {t.state.status === "idle" ? "スタート" : running ? "一時停止" : "再開"}
+          </span>
         </button>
-        <button type="button" className="btn-secondary py-5" onClick={t.skip} disabled={v.finished || t.state.status === "idle" || t.state.segments.length < 2} aria-label="次の区間へ">
-          ⏭
+        <button type="button" className="btn-secondary py-5" onClick={t.skip} disabled={v.finished || t.state.status === "idle" || t.state.segments.length < 2} aria-label="次の区間へ" title="次の区間へ">
+          <SkipIcon className="mx-auto h-6 w-6" />
         </button>
-        <button type="button" className="btn-secondary py-5" onClick={t.reset} aria-label="リセット" data-testid="timer-reset">
-          ↺
+        <button type="button" className="btn-secondary py-5" onClick={t.reset} aria-label="リセット" title="リセット" data-testid="timer-reset">
+          <ResetIcon className="mx-auto h-6 w-6" />
         </button>
       </section>
       <section className="flex flex-wrap gap-2 text-sm">
-        <button type="button" className="btn-secondary px-3 py-1.5" onClick={() => t.adjust(30)}>
-          +30秒
-        </button>
-        <button type="button" className="btn-secondary px-3 py-1.5" onClick={() => t.adjust(-30)}>
-          −30秒
-        </button>
+        {/* 今の区間の残り時間を調整 */}
+        <div className="grid w-full grid-cols-4 gap-2" role="group" aria-label="残り時間の調整">
+          {[-30, -10, 10, 30].map((d) => (
+            <button key={d} type="button" className="btn-secondary px-2 py-1.5" onClick={() => t.adjust(d)} aria-label={d > 0 ? `${d}秒延長` : `${-d}秒短くする`}>
+              {d > 0 ? `+${d}秒` : `−${-d}秒`}
+            </button>
+          ))}
+        </div>
         {entry && v.finished && (
           <button type="button" className="btn-primary ml-auto px-3 py-1.5" onClick={applyActual}>
             計画どおり実施 → 実績に反映
@@ -455,7 +461,7 @@ function HistoryRow({ h, onLoad, onDelete }: { h: TimerHistoryEntry; onLoad: () 
         </span>
       </button>
       <button type="button" className="tap px-2 text-muted" onClick={onDelete} aria-label={`${h.title} を履歴から削除`}>
-        ✕
+        <CloseIcon className="h-4 w-4" />
       </button>
     </li>
   );

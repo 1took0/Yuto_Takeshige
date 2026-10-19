@@ -579,3 +579,15 @@ test("設定画面は項目ごとに開閉でき、他の画面からのリン�
   await expect(page).toHaveURL(/\/settings#stores/);
   await expect(page.getByTestId("store-name")).toBeVisible();
 });
+
+test("タイマー画面：±10秒・±30秒で調整でき、スキップ・リセット・再生はマークで表示", async ({ page }) => {
+  await page.goto("/timer/interval");
+  for (const name of ["10秒延長", "10秒短くする", "30秒延長", "30秒短くする"]) await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  for (const name of ["次の区間へ", "リセット"]) {
+    const b = page.getByRole("button", { name, exact: true });
+    await expect(b.locator("svg")).toBeVisible();
+    await expect(b).not.toContainText(/[⏭↺]/);
+  }
+  await expect(page.getByTestId("timer-toggle").locator("svg")).toBeVisible();
+  await expect(page.getByTestId("timer-toggle")).not.toContainText("▶");
+});

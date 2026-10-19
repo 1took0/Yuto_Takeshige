@@ -1,4 +1,5 @@
 "use client";
+import { CloseIcon, PauseIcon, PlayIcon } from "@/components/ui/Icons";
 import { useEffect } from "react";
 import { useTimer } from "@/hooks/useTimer";
 import { restTimer } from "@/lib/timer/engine";
@@ -38,10 +39,10 @@ export function RestTimerBar({ seconds, nonce, sound, vibration, onClose }: { se
           +10
         </button>
         <button type="button" className="btn-secondary px-3" onClick={t.toggle} aria-label={t.state.status === "running" ? "一時停止" : "再開"}>
-          {t.state.status === "running" ? "❚❚" : "▶"}
+          {t.state.status === "running" ? <PauseIcon /> : <PlayIcon />}
         </button>
         <button type="button" className="btn-ghost px-3" onClick={onClose} aria-label="休憩タイマーを閉じる">
-          ✕
+          <CloseIcon />
         </button>
       </div>
     </div>

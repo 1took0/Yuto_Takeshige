@@ -1,4 +1,5 @@
 "use client";
+import { CloseIcon } from "@/components/ui/Icons";
 import { useEffect, type ReactNode } from "react";
 
 /** 画面下から出るシート（モーダル） */
@@ -28,7 +29,7 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
           <div className="mx-auto h-1.5 w-10 rounded-full bg-border absolute left-1/2 top-2 -translate-x-1/2" />
           <h2 className="mt-2 text-lg font-bold">{title}</h2>
           <button className="btn-ghost mt-2 -mr-2 px-3" onClick={onClose} aria-label="閉じる">
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
