@@ -7,7 +7,7 @@ import { OWNER_GOALS } from "@/lib/goals";
 
 /**
  * 作成者専用：サーバーに置いた過去の記録を復元コードで取り込む
- * ナビゲーションからはリンクしていない（URL を知っている本人だけが使う）
+ * ナビゲーションには出さず、設定画面の「データ」からのみ開ける（復元コードを知っている本人だけが使える）
  */
 export function RestoreForm() {
   const router = useRouter();

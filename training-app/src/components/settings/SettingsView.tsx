@@ -196,6 +196,10 @@ export function SettingsView() {
             JSON インポート
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onImportFile(e.target.files[0])} />
+          {/* ホーム画面に追加したアプリはアドレスバーがなく Safari とも保存領域が別なので、ここから復元ページへ行けるようにする */}
+          <button type="button" className="btn-secondary col-span-2" onClick={() => router.push("/restore")}>
+            復元コードで記録を取り込む
+          </button>
           <button type="button" className="btn-danger col-span-2" onClick={() => setConfirmWipe(true)}>
             すべてのデータを削除
           </button>
