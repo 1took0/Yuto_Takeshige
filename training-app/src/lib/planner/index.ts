@@ -216,6 +216,13 @@ export function generatePlan(input: PlanInput): PlanResult {
     if (!def || f < 1 / 3 || slots.some((sl) => sl.candidates.includes(id))) continue;
     slots.push({ key: `habit:${id}`, candidates: [id], regions: def.regions, base: 62 });
   }
+  // ヒアリングで答えた「これまでに行っていた種目」も、自動作成の枠に無ければ候補に加える
+  const pastIds = new Set((prefs.pastExercises ?? []).map((x) => x.exerciseId));
+  for (const id of pastIds) {
+    const def = getExercise(id);
+    if (!def || slots.some((sl) => sl.candidates.includes(id))) continue;
+    slots.push({ key: `past:${id}`, candidates: [id], regions: def.regions, base: 62 });
+  }
   for (const slot of slots) {
     let chosen: Candidate | null = null;
     for (const exId of slot.candidates) {
@@ -226,7 +233,7 @@ export function generatePlan(input: PlanInput): PlanResult {
       const av = availability(storeEquipment, store, def.equipmentId);
       if (!av.ok) continue;
       // 将来導入候補は、その店舗で利用実績があるときのみ自動提案
-      if (def.optional && !usedAtStore(history, exId, store)) continue;
+      if (def.optional && !pastIds.has(exId) && !usedAtStore(history, exId, store)) continue;
       const painReason = painExcludes(def, pains);
       if (painReason) {
         warnings.push(`${def.name}：${painReason}`);
@@ -243,6 +250,11 @@ export function generatePlan(input: PlanInput): PlanResult {
         score += 40 * habit;
         notes.push("自分で組んだメニューでよく行っている種目です");
       } else if (habits.count >= 2) score -= 10;
+      // ヒアリングで「これまでに行っていた」と答えた種目は選びやすく
+      if (pastIds.has(exId)) {
+        score += 40;
+        notes.push("以前行っていた種目です");
+      }
 
       // 重点部位
       if (focusRegions) {
@@ -435,6 +447,8 @@ export function buildPlannedExercise(
   let reps: number | undefined;
   let seconds: number | undefined;
   let weightReference: WorkoutExercise["weightReference"] = "none";
+  // ヒアリングで答えた、以前行っていたときの重量・回数（アプリの記録が無いときの参考）
+  const pastEntry = prefs.pastExercises?.find((x) => x.exerciseId === def.id);
 
   if (def.loadType === "time") {
     seconds = ref ? workingSeconds(ref.exercise) ?? def.defaultSeconds : def.defaultSeconds;
@@ -444,7 +458,7 @@ export function buildPlannedExercise(
   } else if (def.loadType === "reps") {
     // 自重の回数種目：全セット達成したら回数を+1（20回まで）
     const last = same[0] ? toPastSession(same[0].exercise) : undefined;
-    reps = last?.reps ?? def.defaultReps;
+    reps = last?.reps ?? (!any[0] ? pastEntry?.reps : undefined) ?? def.defaultReps;
     if (last?.outcome.success && reps !== undefined && reps < 20) {
       reps += 1;
       notes.push("前回は全セット達成 → 回数を+1");
@@ -472,6 +486,12 @@ export function buildPlannedExercise(
     weight = def.loadType === "assist" ? roundToStep(base + step, step) : Math.max(step, roundToStep(base - step, step));
     reps = toPastSession(ref.exercise).reps;
     notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
+  } else if (pastEntry?.weight !== undefined && pastEntry.weight > 0) {
+    // アプリでは初めてだが以前行っていた種目：その重量を参考に少し軽めから
+    const base = pastEntry.weight;
+    weight = def.loadType === "assist" ? roundToStep(base * 1.1, step) : Math.max(step, roundToStep(base * 0.9, step));
+    reps = pastEntry.reps;
+    notes.push(`以前行っていた重量（${base}kg${pastEntry.reps ? `×${pastEntry.reps}回` : ""}）を参考に少し軽めから`);
   } else {
     // 初めての種目：体重が分かれば目安の重量を出す
     const est = estimateStartWeight(def, prefs, step);

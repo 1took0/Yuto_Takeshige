@@ -30,6 +30,27 @@ async function onboard(page: Page, name: string, opts: { importSeed?: boolean; s
   }
 }
 
+test("ヒアリングは2ページ目（これまでの種目）だけスキップできる", async ({ browser }) => {
+  const page = await newUser(browser);
+  await page.goto("/");
+  await page.getByTestId("welcome-name").fill("サブロウ");
+  await page.getByTestId("welcome-submit").click();
+  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  await page.getByRole("radio", { name: "2年以上" }).click();
+  await page.getByTestId("prefs-next").click();
+  await expect(page.getByTestId("prefs-page2")).toBeVisible();
+  // 戻って答えを確かめられる
+  await page.getByTestId("prefs-back").click();
+  await expect(page.getByRole("radio", { name: "2年以上" })).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("prefs-next").click();
+  await page.getByTestId("prefs-past-skip").click();
+  await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
+  // 1ページ目の答えは保存されている
+  await page.goto("/settings#preferences");
+  await expect(page.getByTestId("prefs-summary")).toContainText("経験：2年以上");
+  await page.context().close();
+});
+
 test("新しい利用者は空の履歴から始まり、目標を設定できる", async ({ browser }) => {
   const page = await newUser(browser);
   await page.goto("/");

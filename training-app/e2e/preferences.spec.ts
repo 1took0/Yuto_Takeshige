@@ -22,6 +22,16 @@ test("初回ヒアリングの希望と「トレーニングを調整」で選�
   await page.getByRole("radiogroup", { name: "有酸素運動の希望" }).getByRole("radio", { name: "なし" }).click();
   await page.getByTestId("prefs-wish").fill("レッグプレスはやりたくない");
   await expect(page.getByTestId("prefs-wish-preview")).toContainText("レッグプレスは自動作成で選ばない");
+  // 2ページ目：これまでに行っていた種目（ベンチプレス 60kg×8回）
+  await page.getByTestId("prefs-next").click();
+  await expect(page.getByTestId("prefs-page2")).toBeVisible();
+  await expect(page.getByTestId("prefs-past-skip")).toBeVisible();
+  await page.getByTestId("prefs-past-search").fill("ベンチプレス");
+  await page.getByTestId("past-ex-option").filter({ hasText: /^ベンチプレス/ }).first().click();
+  const chosen = page.getByTestId("past-ex-chosen");
+  await expect(chosen).toHaveCount(1);
+  await chosen.getByRole("textbox", { name: /の重量$/ }).fill("60");
+  await chosen.getByRole("textbox", { name: /の回数$/ }).fill("8");
   await page.getByTestId("prefs-submit").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
 
@@ -36,6 +46,10 @@ test("初回ヒアリングの希望と「トレーニングを調整」で選�
   await expect(cards.first()).toBeVisible();
   expect(await cards.count()).toBeLessThanOrEqual(6);
   await expect(cards.filter({ hasText: "レッグプレス" })).toHaveCount(0);
+  // 以前行っていた種目はメニューに入り、その重量を参考に少し軽めから
+  const bench = cards.filter({ has: page.getByRole("heading", { name: "ベンチプレス", exact: true }) });
+  await expect(bench).toHaveCount(1);
+  await expect(bench).toContainText("55 kg");
   await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);
 
   // 「トレーニングを調整」の「今後この種目は外したい」を選ぶ → 今日のメニューからも外れ、設定に残る
@@ -53,6 +67,9 @@ test("初回ヒアリングの希望と「トレーニングを調整」で選�
   await expect(page.getByRole("heading", { name: "ヒアリング結果の編集" })).toBeVisible();
   await page.getByRole("radio", { name: "半年未満" }).click();
   await page.getByRole("radiogroup", { name: "有酸素運動の希望" }).getByRole("radio", { name: "ウォーキング" }).click();
+  await page.getByTestId("prefs-next").click();
+  // 2ページ目に以前の答えが残っている
+  await expect(page.getByTestId("past-ex-chosen")).toHaveCount(1);
   await page.getByTestId("prefs-submit").click();
   await expect(page).toHaveURL(/\/settings/);
   await expect(page.getByTestId("prefs-summary")).toContainText("経験：半年未満");

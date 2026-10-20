@@ -346,6 +346,13 @@ export type Experience = "new" | "beginner" | "intermediate" | "advanced";
 export type Intensity = "light" | "normal" | "hard";
 export type EquipmentStyle = "machine" | "balanced" | "dumbbell";
 
+/** これまでに行っていた種目（分かれば重量・回数も） */
+export interface PastExercise {
+  exerciseId: string;
+  weight?: number;
+  reps?: number;
+}
+
 /** 利用者から伝えられた希望の記録（何をどう反映したか） */
 export interface PreferenceNote {
   id: string;
@@ -380,6 +387,8 @@ export interface MenuPreferences {
   sex?: "male" | "female" | "unspecified";
   bodyWeightKg?: number;
   age?: number;
+  /** これまでに行っていたトレーニング種目（ヒアリングの2ページ目。メニュー作成の参考にする） */
+  pastExercises?: PastExercise[];
   notes?: PreferenceNote[];
 }
 
