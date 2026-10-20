@@ -2,6 +2,7 @@ import type { CardioEntry, CardioMachine, ExerciseDef, Workout, WorkoutExercise,
 import { getExercise } from "@/lib/catalog/exercises";
 import { newId } from "@/lib/id";
 import { computeDurations } from "./duration";
+import { defaultStepOf } from "@/lib/planner/progression";
 import { trainingDateOf } from "@/lib/date/trainingDay";
 
 /**
@@ -127,7 +128,7 @@ export interface NewExerciseOptions {
 
 export function buildExercise(def: ExerciseDef, opts: NewExerciseOptions = {}): WorkoutExercise {
   const n = Math.max(1, opts.sets ?? def.defaultSets);
-  const step = opts.step ?? def.increment;
+  const step = opts.step ?? defaultStepOf(def);
   const sets: WorkoutSet[] = [];
   for (let i = 0; i < n; i++) {
     let weight = opts.weight;

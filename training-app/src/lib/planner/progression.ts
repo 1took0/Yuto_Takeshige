@@ -110,10 +110,20 @@ export function progressionProfile(def: ExerciseDef, prefs: MenuPreferences = {}
   };
 }
 
+/** 器具の重量の刻みの初期値（店舗の器具で変更していないとき） */
+export const DEFAULT_STEP_KG = 5;
+
+/** 店舗で設定していないときの刻み：重量のある種目は 5kg。自分で作った種目は作るときに決めた刻み */
+export function defaultStepOf(def: Pick<ExerciseDef, "custom" | "increment" | "loadType">): number {
+  if (def.custom && def.increment > 0) return def.increment;
+  if (def.loadType === "weight" || def.loadType === "assist") return DEFAULT_STEP_KG;
+  return def.increment > 0 ? def.increment : 1;
+}
+
 /** この店舗のこの種目で重量を変えられる刻み(kg) */
 export function stepFor(def: ExerciseDef, storeId: StoreId, storeEquipment: StoreEquipment[]): number {
   const row = storeEquipment.find((r) => r.storeId === storeId && r.equipmentId === def.equipmentId);
-  const step = row?.stepKg ?? def.increment;
+  const step = row?.stepKg ?? defaultStepOf(def);
   return step > 0 ? step : 1;
 }
 

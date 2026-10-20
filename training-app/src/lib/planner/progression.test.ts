@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getExercise } from "@/lib/catalog/exercises";
 import type { ExerciseDef } from "@/lib/types";
-import { decideNextLoad, estimateStartWeight, liftClass, progressionProfile, stepFor, type PastSession } from "./progression";
+import { DEFAULT_STEP_KG, decideNextLoad, estimateStartWeight, liftClass, progressionProfile, stepFor, type PastSession } from "./progression";
 import { PERSONAS, SIM_EXERCISES, simulate, summarize } from "./simulate";
 
 const def = (id: string) => getExercise(id) as ExerciseDef;
@@ -102,10 +102,13 @@ describe("重量の進め方のルール", () => {
     expect(estimateStartWeight(def("chest_press"), {}, 5)).toBeUndefined();
   });
 
-  it("店舗・器具ごとの刻みを使い、無ければ種目の標準", () => {
+  it("店舗・器具ごとの刻みを使い、設定していなければ 5kg（自分で作った種目は作るときに決めた刻み）", () => {
     const eq = [{ key: "ichijoji:dumbbells", storeId: "ichijoji", equipmentId: "dumbbells", available: true, confirmed: true, stepKg: 2, updatedAt: "" }];
     expect(stepFor(def("db_curl_single"), "ichijoji", eq)).toBe(2);
-    expect(stepFor(def("db_curl_single"), "sanjo-ohashi", eq)).toBe(1);
+    expect(stepFor(def("db_curl_single"), "sanjo-ohashi", eq)).toBe(DEFAULT_STEP_KG);
+    expect(stepFor(def("leg_press"), "ichijoji", eq)).toBe(5);
+    expect(stepFor(def("pallof_press"), "ichijoji", eq)).toBe(5);
+    expect(stepFor({ ...def("db_curl_single"), custom: true, increment: 1.25, equipmentId: "other" }, "ichijoji", eq)).toBe(1.25);
   });
 });
 

@@ -2,6 +2,7 @@
 import type { ExerciseDef, WorkoutSet } from "@/lib/types";
 import { NumberField } from "@/components/ui/NumberField";
 import { TrashIcon } from "@/components/ui/Icons";
+import { defaultStepOf } from "@/lib/planner/progression";
 
 interface Props {
   index: number;
@@ -21,7 +22,7 @@ export function SetRow({ index, set, def, onChange, onToggle, onRemove, onExclud
   const isTime = def?.loadType === "time";
   const isRepsOnly = def?.loadType === "reps";
   const unilateral = !!def?.unilateral && !isTime;
-  const step = stepProp && stepProp > 0 ? stepProp : def?.increment && def.increment > 0 ? def.increment : 1;
+  const step = stepProp && stepProp > 0 ? stepProp : def ? defaultStepOf(def) : 1;
 
   return (
     <div className={`rounded-xl border border-border p-2 ${set.excluded ? "opacity-50" : ""} ${set.completed ? "bg-success-soft/60" : "bg-card"}`} data-testid="set-row">

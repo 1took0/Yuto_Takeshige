@@ -5,6 +5,7 @@ import { REGION_LABEL } from "@/lib/catalog/muscles";
 import { exerciseMinutes } from "@/lib/planner";
 import { buildTreadmillPlan } from "@/lib/planner/cardio";
 import { comebackAdjust, parseComeback } from "@/lib/planner/comeback";
+import { defaultStepOf } from "@/lib/planner/progression";
 import { allTargetsReported, exerciseHistory, workingWeight } from "@/lib/planner/history";
 
 /**
@@ -170,8 +171,9 @@ export function respond(intent: Intent, w: Workout | null, ctx: { history: Worko
         const def = getExercise(e.exerciseId);
         if (!def || e.sets.some((s) => s.completed)) continue;
         const cur = e.sets.find((s) => !s.completed && !s.excluded)?.weight;
-        if (cur !== undefined && def.increment) {
-          const nw = Math.max(def.increment, Math.round((cur * adj.loadFactor) / def.increment) * def.increment);
+        const inc = defaultStepOf(def);
+        if (cur !== undefined && inc) {
+          const nw = Math.max(inc, Math.round((cur * adj.loadFactor) / inc) * inc);
           if (nw < cur) ops.push({ op: "set_weight", exerciseId: e.exerciseId, weight: nw, reason: "久しぶりのため軽く" });
         }
         const n = e.sets.filter((s) => !s.excluded).length;
@@ -191,8 +193,9 @@ export function respond(intent: Intent, w: Workout | null, ctx: { history: Worko
         const hit = regions.length ? def.regions.some((r) => regions.includes(r)) : false;
         if (!hit) continue;
         const cur = e.sets.find((s) => !s.completed)?.weight;
-        if (cur !== undefined && def.increment) {
-          const nw = Math.max(def.increment, Math.round((cur * 0.85) / def.increment) * def.increment);
+        const inc = defaultStepOf(def);
+        if (cur !== undefined && inc) {
+          const nw = Math.max(inc, Math.round((cur * 0.85) / inc) * inc);
           if (nw < cur) ops.push({ op: "set_weight", exerciseId: e.exerciseId, weight: nw, reason: "疲労のため約15%軽く" });
         }
         if (e.sets.filter((s) => !s.excluded).length > 2) ops.push({ op: "set_sets", exerciseId: e.exerciseId, sets: 2, reason: "疲労のため2セットに" });
@@ -277,15 +280,15 @@ export function respond(intent: Intent, w: Workout | null, ctx: { history: Worko
       const todayEasy = doneToday.some((s) => s.feel === "easy");
       if (cur === undefined) return { message: `${e.name} はまだ基準重量がありません。軽めで確認してから決めましょう。` };
       if (todayReported || todayEasy) {
-        const nw = cur + def.increment;
+        const nw = cur + defaultStepOf(def);
         return { message: `今日の${e.name}は目標回数を達成${todayEasy ? "し「楽」でした" : "しています"}。残りのセットを ${nw}kg に上げて問題ありません（フォームが崩れたら戻してください）。`, patch: { message: "重量アップ", ops: [{ op: "set_weight", exerciseId: e.exerciseId, weight: nw, reason: "目標達成のため" }] } };
       }
       if (last && allTargetsReported(last.exercise)) {
-        return { message: `前回（${last.workout.trainingDate}）は全セット目標達成の記録があるので、${cur + def.increment}kg を試してよいでしょう。上げる場合は「${e.name}を${cur + def.increment}kgに」と言ってください。` };
+        return { message: `前回（${last.workout.trainingDate}）は全セット目標達成の記録があるので、${cur + defaultStepOf(def)}kg を試してよいでしょう。上げる場合は「${e.name}を${cur + defaultStepOf(def)}kgに」と言ってください。` };
       }
       const lastW = last ? workingWeight(last.exercise) : undefined;
       return {
-        message: `${e.name} は現在 ${cur}kg${lastW !== undefined ? `（前回 ${lastW}kg）` : ""}。実回数の記録が無いため、まずは今のセットで目標回数を達成できたか「実回数」に入力してください。全セット達成していれば次のセットから +${def.increment}kg が目安です。`,
+        message: `${e.name} は現在 ${cur}kg${lastW !== undefined ? `（前回 ${lastW}kg）` : ""}。実回数の記録が無いため、まずは今のセットで目標回数を達成できたか「実回数」に入力してください。全セット達成していれば次のセットから +${defaultStepOf(def)}kg が目安です。`,
       };
     }
     case "stop_running": {

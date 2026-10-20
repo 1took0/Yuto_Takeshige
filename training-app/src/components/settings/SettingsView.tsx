@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/Toast";
 import { disableSharing } from "@/lib/share/client";
 import { musclesLabel } from "@/lib/catalog/muscles";
 import { ChipGroup } from "@/components/ui/Chips";
+import { defaultStepOf } from "@/lib/planner/progression";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { NumberField } from "@/components/ui/NumberField";
 
@@ -261,12 +262,12 @@ export function SettingsView() {
   );
 }
 
-/** 器具ごとの標準の刻み（その器具を使う重量種目のうち最小の刻み） */
+/** 器具ごとの刻みの初期値（重量のある器具は 5kg。自分で作った種目だけの器具はその刻み） */
 function defaultSteps(exercises: ReturnType<typeof useExercises>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const e of exercises) {
-    if ((e.loadType !== "weight" && e.loadType !== "assist") || !(e.increment > 0)) continue;
-    out[e.equipmentId] = Math.min(out[e.equipmentId] ?? Infinity, e.increment);
+    if (e.loadType !== "weight" && e.loadType !== "assist") continue;
+    out[e.equipmentId] = Math.min(out[e.equipmentId] ?? Infinity, defaultStepOf(e));
   }
   return out;
 }

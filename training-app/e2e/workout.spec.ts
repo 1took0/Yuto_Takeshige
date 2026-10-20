@@ -663,6 +663,8 @@ test("店舗の器具：重量の刻みの数字が見え、変更できる", as
   await page.goto("/settings#equipment");
   const input = page.getByLabel("チェストプレスマシンの重量の刻み", { exact: true });
   await expect(input).toHaveValue("5");
+  // 刻みの初期値はどの器具も 5kg（ダンベルも）
+  await expect(page.getByLabel("ダンベルの重量の刻み", { exact: true })).toHaveValue("5");
   const box = (await input.boundingBox())!;
   expect(box.width).toBeGreaterThan(40);
   // 保存が終わる前に画面を離れないよう、再読み込みしても残っていることを確かめる
