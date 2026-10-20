@@ -2,7 +2,9 @@
 import { Collapsible } from "@/components/ui/Collapsible";
 import { useState } from "react";
 import { useStores } from "@/hooks/useSettings";
-import { addStore, countWorkoutsAtStore, deleteStore, renameStore } from "@/lib/db/repo";
+import { addStore, countWorkoutsAtStore, deleteStore, renameStore, setStoreHidden } from "@/lib/db/repo";
+import { BUILTIN_STORES, isStoreHidden } from "@/lib/catalog/stores";
+import { useSettings } from "@/hooks/useSettings";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import type { StoreDef } from "@/lib/types";
@@ -10,6 +12,9 @@ import type { StoreDef } from "@/lib/types";
 /** 店舗の追加・名前変更・削除 */
 export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
   const stores = useStores();
+  // 表示しない標準店舗も一覧には出す（「表示する」で戻せるように）
+  useSettings();
+  const listed = [...BUILTIN_STORES, ...stores.filter((s) => s.custom)];
   const toast = useToast();
   const [name, setName] = useState("");
   const [copyFrom, setCopyFrom] = useState<string>("");
@@ -21,7 +26,7 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
       const s = await addStore(name, copyFrom || undefined);
       setName("");
       setCopyFrom("");
-      toast(`${s.name} を追加しました。器具は「未確認」なので、実際に確認して更新してください`, "success");
+      toast(`${s.name} を追加しました。器具は「未確認」から始まります。設定の「店舗の器具」で、無い器具を「ない」にすると自動作成から外れます`, "success");
       onAdded?.(s.id);
     } catch (e) {
       toast(e instanceof Error ? e.message : "追加できませんでした", "error");
@@ -29,11 +34,11 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
   };
 
   return (
-    <Collapsible id="stores" title="店舗" hint="よく行く店舗を追加できます。追加した店舗は、トレーニング開始時の店舗の選択肢と器具の設定に表示されます。" badge={<span className="text-xs text-muted">{stores.length}店舗</span>}>
+    <Collapsible id="stores" title="店舗" hint="LifeFit 以外のジムも自由に登録できます。追加した店舗は、トレーニング開始時の店舗の選択肢と器具の設定に表示されます。使わない標準店舗は「表示しない」にできます（記録は残ります）。" badge={<span className="text-xs text-muted">{stores.length}店舗</span>}>
       <div className="space-y-3">
       <ul className="divide-y divide-border" data-testid="store-list">
-        {stores.map((s) => (
-          <li key={s.id} className="flex items-center gap-2 py-2 text-sm">
+        {listed.map((s) => (
+          <li key={s.id} className={`flex items-center gap-2 py-2 text-sm ${isStoreHidden(s.id) ? "opacity-60" : ""}`} data-testid="store-row">
             {editing?.id === s.id ? (
               <>
                 <input className="input" maxLength={30} value={editing.name} onChange={(e) => setEditing({ id: s.id, name: e.target.value })} aria-label="店舗名" autoFocus />
@@ -56,8 +61,13 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
               <>
                 <span className="min-w-0 flex-1 truncate">
                   {s.name}
-                  {!s.custom && <span className="ml-1 text-[10px] text-muted">（標準）</span>}
+                  {!s.custom && <span className="ml-1 text-[10px] text-muted">（標準{isStoreHidden(s.id) ? "・表示しない" : ""}）</span>}
                 </span>
+                {!s.custom && (
+                  <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setStoreHidden(s.id, !isStoreHidden(s.id))} data-testid="store-hide">
+                    {isStoreHidden(s.id) ? "表示する" : "表示しない"}
+                  </button>
+                )}
                 {s.custom && (
                   <>
                     <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setEditing({ id: s.id, name: s.name })}>
@@ -75,12 +85,12 @@ export function StoreManager({ onAdded }: { onAdded?: (id: string) => void }) {
       </ul>
       <div className="space-y-2 rounded-xl bg-card-2 p-3">
         <div className="text-xs font-semibold text-muted">店舗を追加</div>
-        <input className="input" maxLength={30} placeholder="例：LifeFit 〇〇店" value={name} onChange={(e) => setName(e.target.value)} aria-label="追加する店舗名" data-testid="store-name" />
+        <input className="input" maxLength={30} placeholder="例：〇〇ジム 四条店、市営体育館" value={name} onChange={(e) => setName(e.target.value)} aria-label="追加する店舗名" data-testid="store-name" />
         <label className="flex flex-col gap-1 text-xs text-muted">
           器具の初期値
           <select className="input py-1.5 text-sm" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)} aria-label="器具の初期値">
-            <option value="">すべて未確認</option>
-            {stores.map((s) => (
+            <option value="">すべて未確認（他のジム）</option>
+            {[...stores.filter((s) => s.custom), ...stores.filter((s) => !s.custom)].map((s) => (
               <option key={s.id} value={s.id}>
                 {s.shortName}の器具をコピー
               </option>

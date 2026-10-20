@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { BodyRegion, CardioChoice, FocusArea, IntakeAnswers, StoreId } from "@/lib/types";
-import { STORES } from "@/lib/catalog/stores";
+import { defaultStoreId } from "@/lib/catalog/stores";
 import { FOCUS_LABEL, REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
 import { ChipGroup, MultiChipGroup } from "@/components/ui/Chips";
 import { useStores } from "@/hooks/useSettings";
@@ -52,7 +52,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
       const noTreadmill = skipsCardio(use, "treadmill");
       const learned: CardioChoice = runHistory(history).some((r) => (r.runMin ?? 0) > 0) ? "run" : use.treadmill > 0 ? "walk" : "none";
       setForm({
-        storeId: s.lastStoreId && (s.customStores ?? []).concat(STORES).some((x) => x.id === s.lastStoreId) ? s.lastStoreId : "ichijoji",
+        storeId: defaultStoreId(s.lastStoreId),
         timeLimit: s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
         condition: 4,
         soreness: false,
@@ -108,7 +108,10 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         if (changes.length) toast(`今後のメニューに反映します：${changes.join("、")}`);
       }
       const [history, equipment, s] = await Promise.all([listCompletedWorkouts(), listStoreEquipment(), getSettings()]);
-      const { workout } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: s.excludedExerciseIds, goals: s.goals, preferences: s.preferences } });
+      const { workout, warnings } = generatePlan({ intake, history, storeEquipment: equipment, settings: { excludedExerciseIds: s.excludedExerciseIds, goals: s.goals, preferences: s.preferences } });
+      // 器具が足りない・店舗が未確認などの注意は、作成直後に知らせる
+      const notice = warnings.find((x) => x.includes("器具が少ない"));
+      if (notice) toast(notice, "error");
       await setWorkout(workout);
       await rememberIntakeDefaults(storeId, timeLimit, cardio);
       router.push("/workout");

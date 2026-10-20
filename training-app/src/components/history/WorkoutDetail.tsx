@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { deleteWorkout, getWorkout, listStoreEquipment, saveWorkout, setStoreEquipment } from "@/lib/db/repo";
 import type { Workout } from "@/lib/types";
-import { workoutStoreName } from "@/lib/catalog/stores";
+import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { useStores } from "@/hooks/useSettings";
 import { formatJaDate } from "@/lib/date/trainingDay";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
@@ -104,7 +104,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
           </label>
           <label className="flex items-center gap-2">
             <span className="w-20 text-muted">店舗</span>
-            <select className="input" value={w.storeId} onChange={(e) => mutate((x) => ({ ...x, storeId: e.target.value as Workout["storeId"] }))} aria-label="店舗">
+            <select className="input" value={w.storeId} onChange={(e) => mutate((x) => ({ ...x, storeId: e.target.value as Workout["storeId"], storeLabel: storeName(e.target.value as Workout["storeId"]) }))} aria-label="店舗">
               {[...stores, ...(stores.some((s) => s.id === w.storeId) ? [] : [{ id: w.storeId, name: workoutStoreName(w), shortName: "" }])].map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ActivityDay, PublicUser } from "@/lib/share/service";
 import type { SharedWorkout } from "@/lib/share/sanitize";
 import { storeColor } from "@/components/analytics/chartTheme";
-import { allStores, isBuiltinStore, storeName } from "@/lib/catalog/stores";
+import { allStores, isBuiltinStore, shortNameOf, storeName } from "@/lib/catalog/stores";
 import { formatJaDate, shiftYMD } from "@/lib/date/trainingDay";
 
 /**
@@ -29,7 +29,8 @@ export function useDarkTheme(): boolean {
 export function storeLabel(storeId: string, label: string | undefined, short = true): string {
   const known = isBuiltinStore(storeId) || allStores().some((s) => s.id === storeId);
   if (known) return storeName(storeId, short);
-  return (label ?? "その他の店舗").replace(/^LifeFit\s*/, short ? "" : "LifeFit ");
+  if (!label) return "その他の店舗";
+  return short ? shortNameOf(label) : label;
 }
 
 /** 量（0〜1）：90分または24セットで最大 */

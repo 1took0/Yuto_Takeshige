@@ -139,7 +139,8 @@ export function defaultStoreEquipment(now = new Date().toISOString()): StoreEqui
  * - コピー元があれば、その店舗の「ある／ない」を引き継ぎ、すべて未確認扱いにする
  */
 export function equipmentForNewStore(storeId: StoreId, copyFrom?: StoreEquipment[], now = new Date().toISOString()): StoreEquipment[] {
-  return EQUIPMENT.map((eq) => {
+  // 「その他の器具」は自作種目の受け皿なので、店舗の器具としては扱わない
+  return EQUIPMENT.filter((eq) => eq.id !== "other").map((eq) => {
     const src = copyFrom?.find((r) => r.equipmentId === eq.id);
     return {
       key: `${storeId}:${eq.id}`,
@@ -147,6 +148,9 @@ export function equipmentForNewStore(storeId: StoreId, copyFrom?: StoreEquipment
       equipmentId: eq.id,
       available: src ? src.available : true,
       confirmed: false,
+      // コピー元の重量の刻みとメモは引き継ぐ
+      stepKg: src?.stepKg,
+      note: src?.note,
       updatedAt: now,
     };
   });

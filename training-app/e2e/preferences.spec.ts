@@ -55,12 +55,13 @@ test("初回ヒアリングの希望と「トレーニングを調整」で選�
   // 「トレーニングを調整」の「今後この種目は外したい」を選ぶ → 今日のメニューからも外れ、設定に残る
   await page.goto("/");
   await page.getByTestId("adjust-dislike").click();
-  await page.getByTestId("adjust-step").getByRole("button", { name: "チェストプレス", exact: true }).click();
+  // 以前行っていたベンチプレスが胸の枠に入っているので、それを外す
+  await page.getByTestId("adjust-step").getByRole("button", { name: "ベンチプレス", exact: true }).click();
   await expect(page.getByTestId("adjust-reply")).toContainText("次回以降のメニューに反映します");
   await page.goto("/workout");
-  await expect(page.getByTestId("exercise-card").filter({ hasText: "チェストプレス" })).toHaveCount(0);
+  await expect(page.getByTestId("exercise-card").filter({ has: page.getByRole("heading", { name: "ベンチプレス", exact: true }) })).toHaveCount(0);
   await page.goto("/settings#preferences");
-  await expect(page.getByTestId("prefs-summary")).toContainText("やりたくない種目：レッグプレス・チェストプレス");
+  await expect(page.getByTestId("prefs-summary")).toContainText("やりたくない種目：レッグプレス・ベンチプレス");
   await expect(page.getByTestId("prefs-summary")).toContainText("経験：はじめて");
   // 設定画面からヒアリング結果を編集できる
   await page.getByTestId("prefs-edit").click();

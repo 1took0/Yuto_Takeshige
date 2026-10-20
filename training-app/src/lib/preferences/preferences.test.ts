@@ -81,7 +81,8 @@ describe("メニュー作成への反映", () => {
     expect(base.workout.exercises.some((e) => e.exerciseId === "leg_press")).toBe(true);
     const w = plan({ dislikedExerciseIds: ["leg_press"] }).workout;
     expect(w.exercises.some((e) => e.exerciseId === "leg_press")).toBe(false);
-    expect(w.exercises.some((e) => e.exerciseId === "db_goblet_squat")).toBe(true);
+    // 同じ枠の別の種目（ダンベル・スミス・バーベルのスクワット）が入る
+    expect(w.exercises.some((e) => ["db_goblet_squat", "smith_squat", "bb_squat"].includes(e.exerciseId))).toBe(true);
   });
 
   it("控えたい部位は減り、多めにしたい部位は増える", () => {

@@ -21,9 +21,13 @@ describe("stores", () => {
     ]);
     expect(storeName("custom-b")).toBe("B");
     expect(storeColor("ichijoji", false)).toBe("#2a78d6");
-    expect(storeColor("custom-a", false)).toBe("#eda100");
-    expect(storeColor("custom-b", false)).toBe("#e87ba4");
-    expect(storeColor("custom-unknown", false)).toBe("#8a8f99");
+    // 追加した店舗の色は id から決まる（店舗を消しても変わらず、他の人の端末でも同じ）
+    const a = storeColor("custom-a", false);
+    expect(a).toMatch(/^#[0-9a-f]{6}$/);
+    expect(a).not.toBe("#2a78d6");
+    setCustomStores([{ id: "custom-a", name: "A", shortName: "A", custom: true }]);
+    expect(storeColor("custom-a", false)).toBe(a);
+    expect(storeColor("custom-unknown", false)).toMatch(/^#[0-9a-f]{6}$/);
     setCustomStores([]);
   });
 });

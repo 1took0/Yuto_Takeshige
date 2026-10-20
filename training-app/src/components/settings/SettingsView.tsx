@@ -24,16 +24,20 @@ import { musclesLabel } from "@/lib/catalog/muscles";
 import { ChipGroup } from "@/components/ui/Chips";
 import { defaultStepOf } from "@/lib/planner/progression";
 import { Collapsible } from "@/components/ui/Collapsible";
+import { defaultStoreId, isBuiltinStore } from "@/lib/catalog/stores";
+import { hiddenExercisesUsing } from "@/lib/catalog/exercises";
+import { restoreExercise } from "@/lib/db/repo";
 import { NumberField } from "@/components/ui/NumberField";
 
 export function SettingsView() {
   const { settings, update } = useSettings();
   const router = useRouter();
-  const [storeSel, setStore] = useState<StoreId>("ichijoji");
+  const [storeSel, setStore] = useState<StoreId | null>(null);
   const stores = useStores();
   const allEx = useExercises();
   const defaultStep = defaultSteps(allEx);
-  const store = stores.some((s) => s.id === storeSel) ? storeSel : "ichijoji";
+  // 最初は前回使った店舗（LifeFit を使わない人は追加した店舗）
+  const store = storeSel && stores.some((s) => s.id === storeSel) ? storeSel : defaultStoreId(settings.lastStoreId);
   const equipment = useLiveQuery(() => listStoreEquipment(store), [store], []);
   const workouts = useLiveQuery(() => listAllWorkouts(), [], []);
   const [confirmWipe, setConfirmWipe] = useState(false);
@@ -42,11 +46,23 @@ export function SettingsView() {
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  const rows = EQUIPMENT.map((eq) => ({ eq, row: equipment.find((r) => r.equipmentId === eq.id) })).sort((a, b) => Number(!!b.row) - Number(!!a.row));
+  // 「その他の器具」は自作種目の受け皿なので店舗の器具には出さない
+  const rows = EQUIPMENT.filter((eq) => eq.id !== "other").map((eq) => ({ eq, row: equipment.find((r) => r.equipmentId === eq.id) })).sort((a, b) => Number(!!b.row) - Number(!!a.row));
+  /** 器具を「ある」にする。追加した店舗では、その器具を使う隠れた標準種目も一覧に加える */
+  const markAvailable = async (equipmentId: string) => {
+    await setStoreEquipment(store, equipmentId, { available: true, confirmed: true });
+    if (isBuiltinStore(store)) return;
+    const hidden = hiddenExercisesUsing(equipmentId);
+    for (const e of hidden) await restoreExercise(e.id);
+    if (hidden.length) toast(`${hidden.map((e) => e.name).join("・")}を種目一覧に加えました`, "success");
+  };
+  const setAll = async (available: boolean) => {
+    for (const { eq } of rows) await setStoreEquipment(store, eq.id, { available, confirmed: true });
+  };
 
   const exportJSON = async () => {
     const [ws, se] = await Promise.all([listAllWorkouts(), listStoreEquipment()]);
-    downloadText(`training-coach-${new Date().toISOString().slice(0, 10)}.json`, toJSON(ws, se), "application/json");
+    downloadText(`training-coach-${new Date().toISOString().slice(0, 10)}.json`, toJSON(ws, se, settings.customStores ?? []), "application/json");
   };
   const exportCSV = async () => {
     const ws = await listAllWorkouts();
@@ -67,6 +83,12 @@ export function SettingsView() {
     const bundle = parseImport(importPreview.text);
     await bulkPutWorkouts(bundle.workouts);
     if (bundle.storeEquipment?.length) await db().storeEquipment.bulkPut(bundle.storeEquipment);
+    // 追加した店舗は、無いものだけ加える（同じ id はそのまま）
+    if (bundle.customStores?.length) {
+      const cur = settings.customStores ?? [];
+      const add = bundle.customStores.filter((s) => !cur.some((x) => x.id === s.id));
+      if (add.length) await update({ customStores: [...cur, ...add] });
+    }
     toast(`${bundle.workouts.length}件を取り込みました（同じIDは上書き）`, "success");
     setImportPreview(null);
   };
@@ -141,17 +163,32 @@ export function SettingsView() {
             </button>
           ))}
         </div>
+        <div className="mb-2 flex flex-wrap gap-2 text-xs">
+          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(true)} data-testid="equipment-all-yes">
+            すべて「ある」にする
+          </button>
+          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(false)} data-testid="equipment-all-no">
+            すべて「ない」にする
+          </button>
+          <span className="basis-full text-[11px] text-muted">追加したジムでは「すべて「ない」」にしてから、ある器具だけ「ある」にすると早く設定できます。器具を「ある」にすると、その器具を使う標準の種目が種目一覧に加わります。</span>
+        </div>
         <ul className="divide-y divide-border">
           {rows.map(({ eq, row }) => {
+            const hiddenEx = hiddenExercisesUsing(eq.id);
             const state: "yes" | "no" | "unknown" = !row ? "unknown" : row.available ? (row.confirmed ? "yes" : "unknown") : "no";
             return (
               <li key={eq.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm" data-testid="equipment-row">
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{eq.name}</div>
                   {row?.note && <div className="text-xs text-muted">{row.note}</div>}
+                  {state === "yes" && hiddenEx.length > 0 && (
+                    <button type="button" className="text-xs text-accent" onClick={async () => { for (const e of hiddenEx) await restoreExercise(e.id); }}>
+                      この器具の種目（{hiddenEx.map((e) => e.name).join("・")}）を種目一覧に加える
+                    </button>
+                  )}
                 </div>
                 <div className="flex gap-1" role="radiogroup" aria-label={`${eq.name}の有無`}>
-                  <button type="button" role="radio" aria-checked={state === "yes"} className="chip min-h-9 px-3 py-1 text-xs" data-selected={state === "yes"} onClick={() => setStoreEquipment(store, eq.id, { available: true, confirmed: true })}>
+                  <button type="button" role="radio" aria-checked={state === "yes"} className="chip min-h-9 px-3 py-1 text-xs" data-selected={state === "yes"} onClick={() => markAvailable(eq.id)}>
                     ある
                   </button>
                   <button type="button" role="radio" aria-checked={state === "unknown"} className="chip min-h-9 px-3 py-1 text-xs" data-selected={state === "unknown"} onClick={() => setStoreEquipment(store, eq.id, { available: true, confirmed: false })}>

@@ -1,6 +1,7 @@
 import type { MuscleGroup, PreviousPerformance, SideRecord, StoreId, Workout, WorkoutExercise, WorkoutSet } from "@/lib/types";
 import { diffDays } from "@/lib/date/trainingDay";
 import { getExercise } from "@/lib/catalog/exercises";
+import { workoutStoreName } from "@/lib/catalog/stores";
 
 /** 記録として数えるセット（完了済みかつ除外されていない） */
 export function countedSets(e: WorkoutExercise): WorkoutSet[] {
@@ -34,6 +35,7 @@ export function toPrevious(entry: ExerciseHistoryEntry): PreviousPerformance {
     workoutId: entry.workout.id,
     trainingDate: entry.workout.trainingDate,
     storeId: entry.workout.storeId,
+    storeLabel: workoutStoreName(entry.workout, true),
     sets: countedSets(entry.exercise).map((s) => ({ weight: s.weight, reps: s.reps, actualReps: s.actualReps, seconds: s.actualSeconds ?? s.seconds, left: s.left, right: s.right })),
   };
 }

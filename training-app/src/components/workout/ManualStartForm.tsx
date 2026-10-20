@@ -7,7 +7,7 @@ import { ChipGroup } from "@/components/ui/Chips";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { useStores } from "@/hooks/useSettings";
 import { getSettings, updateSettings } from "@/lib/db/repo";
-import { storeName } from "@/lib/catalog/stores";
+import { defaultStoreId, storeName } from "@/lib/catalog/stores";
 import { newManualWorkout } from "@/lib/workout/edit";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 
@@ -23,7 +23,7 @@ export function ManualStartForm() {
   useEffect(() => {
     let cancelled = false;
     getSettings().then((s) => {
-      if (!cancelled) setStoreId(s.lastStoreId ?? "ichijoji");
+      if (!cancelled) setStoreId(defaultStoreId(s.lastStoreId));
     });
     return () => {
       cancelled = true;

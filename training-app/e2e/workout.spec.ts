@@ -723,3 +723,46 @@ test("バイク・トレッドミル：作られた時間・負荷をそのま�
   await page.goto("/workout");
   await expect(page.getByTestId("cardio-card").filter({ hasText: "エアロバイク" }).locator("header")).toContainText(`計画 ${before + 1}分`);
 });
+
+test("LifeFit 以外のジムを登録し、標準店舗を表示しないにして、器具に合ったメニューが作れる", async ({ page }) => {
+  // 記録の無い新しい利用者として（取り込みは使わない）
+  await page.evaluate(async () => {
+    const dbs = (await indexedDB.databases?.()) ?? [];
+    await Promise.all(dbs.map((d) => new Promise<void>((res) => { if (!d.name) return res(); const r = indexedDB.deleteDatabase(d.name); r.onsuccess = r.onerror = r.onblocked = () => res(); })));
+  });
+  await onboard(page, { name: "ジムの人", importSeed: false });
+  await page.goto("/settings#stores");
+  await page.getByTestId("store-name").fill("市営体育館トレーニング室");
+  await page.getByTestId("store-add").click();
+  await expect(page.getByTestId("store-list")).toContainText("市営体育館トレーニング室");
+  // 標準の3店舗を表示しないにする
+  for (const name of ["LifeFit一乗寺店", "LifeFit東山二条店", "LifeFit三条大橋店"]) {
+    const row = page.getByTestId("store-row").filter({ hasText: name });
+    await row.getByTestId("store-hide").click();
+    await expect(row.getByTestId("store-hide")).toHaveText("表示する");
+  }
+
+  // 店舗の器具：追加した店舗のタブが選ばれている。すべて「ない」にしてから、パワーラック・ベンチ・ダンベル・マットを「ある」に
+  await page.getByTestId("settings-equipment").getByRole("button", { name: /店舗の器具/ }).click();
+  await expect(page.locator(".chip[data-selected=true]", { hasText: "市営体育館" })).toBeVisible();
+  await page.getByTestId("equipment-all-no").click();
+  for (const name of ["パワーラック（バーベル）", "ベンチ", "ダンベル", "マット（自重）"]) {
+    await page.getByRole("radiogroup", { name: `${name}の有無`, exact: true }).getByRole("radio", { name: "ある" }).click();
+  }
+  await expect(page.getByRole("radiogroup", { name: "パワーラック（バーベル）の有無" }).getByRole("radio", { name: "ある" })).toHaveAttribute("aria-checked", "true");
+
+  // 開始前の質問：選べる店舗は追加したジムだけで、最初から選ばれている
+  await page.goto("/start");
+  await expect(page.getByRole("radiogroup", { name: "店舗" }).getByRole("radio")).toHaveCount(1);
+  await expect(page.getByRole("radio", { name: "市営体育館トレー…" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "制限なし" }).click();
+  await page.getByRole("radiogroup", { name: "有酸素" }).getByRole("radio", { name: "ランニング込み" }).click();
+  await page.getByTestId("generate").click();
+  await expect(page.getByTestId("progress")).toBeVisible();
+  const cards = page.getByTestId("exercise-card");
+  await expect(cards.filter({ has: page.getByRole("heading", { name: "ベンチプレス", exact: true }) })).toHaveCount(1);
+  await expect(cards.filter({ hasText: "バーベルスクワット" })).toHaveCount(1);
+  await expect(cards.filter({ hasText: "レッグプレス" })).toHaveCount(0);
+  // トレッドミル・バイクは「ない」なので入らない
+  await expect(page.getByTestId("cardio-card")).toHaveCount(0);
+});

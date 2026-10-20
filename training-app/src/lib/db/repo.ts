@@ -3,8 +3,8 @@ import type { CardioChoice, ExerciseDef, PreferenceNote, Settings, StoreDef, Sto
 import { applyWishOps, type WishOp } from "@/lib/preferences";
 import { newId } from "@/lib/id";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
-import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
-import { EXERCISES, HIDDEN_BY_DEFAULT, allExercises, buildCustomExercise, newCustomExerciseId, setCustomExercises, setDeletedExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
+import { defaultStoreId, isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
+import { EXERCISES, HIDDEN_BY_DEFAULT, allExercises, buildCustomExercise, getExercise, newCustomExerciseId, setCustomExercises, setDeletedExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
 import type { TimerHistoryEntry, TimerType } from "@/lib/timer/presets";
 import { addToHistory } from "@/lib/timer/presets";
 import type { TimerSegment } from "@/lib/timer/engine";
@@ -12,7 +12,6 @@ import type { TimerSegment } from "@/lib/timer/engine";
 export const DEFAULT_SETTINGS: Settings = {
   id: "settings",
   theme: "system",
-  lastStoreId: "ichijoji",
   lastTimeLimitMin: 90,
   sound: true,
   vibration: true,
@@ -24,21 +23,29 @@ export const DEFAULT_SETTINGS: Settings = {
 export async function getSettings(): Promise<Settings> {
   const s = await db().settings.get("settings");
   const merged = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
-  setCustomStores(merged.customStores);
+  setCustomStores(merged.customStores, merged.hiddenStoreIds);
   setCustomExercises(merged.customExercises);
   setDeletedExercises(merged.deletedExerciseIds, merged.restoredExerciseIds);
   return merged;
 }
 
-export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
-  const cur = await getSettings();
-  const next = { ...cur, ...patch, id: "settings" as const, updatedAt: new Date().toISOString() };
-  await db().settings.put(next);
-  // 追加した店舗・種目をすぐに参照できるようにする（画面の再描画を待たない）
-  setCustomStores(next.customStores);
-  setCustomExercises(next.customExercises);
-  setDeletedExercises(next.deletedExerciseIds, next.restoredExerciseIds);
-  return next;
+// 設定の更新は「読んで→書く」なので、同時に呼ばれても順番に処理して更新が消えないようにする
+let settingsQueue: Promise<unknown> = Promise.resolve();
+
+export function updateSettings(patch: Partial<Settings>): Promise<Settings> {
+  const run = async () => {
+    const cur = await getSettings();
+    const next = { ...cur, ...patch, id: "settings" as const, updatedAt: new Date().toISOString() };
+    await db().settings.put(next);
+    // 追加した店舗・種目をすぐに参照できるようにする（画面の再描画を待たない）
+    setCustomStores(next.customStores, next.hiddenStoreIds);
+    setCustomExercises(next.customExercises);
+    setDeletedExercises(next.deletedExerciseIds, next.restoredExerciseIds);
+    return next;
+  };
+  const p = settingsQueue.then(run, run);
+  settingsQueue = p.catch(() => undefined);
+  return p;
 }
 
 // ---------- 変更通知（記録共有の同期に使う） ----------
@@ -63,7 +70,9 @@ export async function ensureSeeded(): Promise<void> {
   } else {
     // 新しい器具がカタログに追加された場合は、既存の設定を壊さずに追加だけする
     const existing = new Set((await db().storeEquipment.toArray()).map((r) => r.key));
-    const missing = defaultStoreEquipment().filter((r) => !existing.has(r.key));
+    // 追加した店舗にも、カタログに増えた器具の行を「未確認」で補う（画面の表示とメニュー作成の判定を揃える）
+    const custom = ((await db().settings.get("settings"))?.customStores ?? []).flatMap((s) => equipmentForNewStore(s.id));
+    const missing = [...defaultStoreEquipment(), ...custom].filter((r) => !existing.has(r.key));
     if (missing.length) await db().storeEquipment.bulkPut(missing);
   }
 }
@@ -94,7 +103,20 @@ export async function getActiveWorkout(): Promise<Workout | undefined> {
 export async function saveWorkout(w: Workout): Promise<void> {
   const next = { ...w, updatedAt: new Date().toISOString() };
   await db().workouts.put(next);
-  if (next.status === "completed") notify({ type: "upsert", workout: next });
+  if (next.status === "completed") {
+    notify({ type: "upsert", workout: next });
+    await confirmEquipmentFromWorkout(next);
+  }
+}
+
+/** 実際に行った種目の器具は、その店舗に「ある」と確認済みにする（追加した店舗の「未確認」を記録から埋める） */
+async function confirmEquipmentFromWorkout(w: Workout): Promise<void> {
+  const ids = new Set(w.exercises.filter((e) => e.sets.some((s) => s.completed && !s.excluded)).map((e) => getExercise(e.exerciseId)?.equipmentId).filter((x): x is string => !!x && x !== "other"));
+  for (const c of w.cardio) if (c.completed && !c.skipped) ids.add(c.machine);
+  for (const equipmentId of ids) {
+    const cur = await db().storeEquipment.get(`${w.storeId}:${equipmentId}`);
+    if (cur && !cur.confirmed) await setStoreEquipment(w.storeId, equipmentId, { available: true, confirmed: true });
+  }
 }
 
 export async function deleteWorkout(id: string): Promise<void> {
@@ -149,8 +171,21 @@ export async function addStore(name: string, copyFromStoreId?: StoreId): Promise
   const store: StoreDef = { id: newStoreId(), name: n, shortName: shortNameOf(n), custom: true };
   const copy = copyFromStoreId ? await listStoreEquipment(copyFromStoreId) : undefined;
   await db().storeEquipment.bulkPut(equipmentForNewStore(store.id, copy));
-  await updateSettings({ customStores: [...list, store] });
+  // いまの店舗でまだ一度も記録していない人（LifeFit を使わない人）は、追加した店舗を次の既定にする
+  const current = s.lastStoreId ?? defaultStoreId();
+  const usedCurrent = (await db().workouts.where("storeId").equals(current).count()) > 0;
+  await updateSettings({ customStores: [...list, store], ...(usedCurrent ? {} : { lastStoreId: store.id }) });
   return store;
+}
+
+/** 標準店舗を表示しない／表示する（記録と器具の設定は残る） */
+export async function setStoreHidden(id: StoreId, hidden: boolean): Promise<void> {
+  if (!isBuiltinStore(id)) return;
+  const s = await getSettings();
+  const cur = new Set(s.hiddenStoreIds ?? []);
+  if (hidden) cur.add(id);
+  else cur.delete(id);
+  await updateSettings({ hiddenStoreIds: [...cur], lastStoreId: hidden && s.lastStoreId === id ? undefined : s.lastStoreId });
 }
 
 export async function renameStore(id: StoreId, name: string): Promise<void> {
@@ -158,6 +193,12 @@ export async function renameStore(id: StoreId, name: string): Promise<void> {
   if (!n || isBuiltinStore(id)) return;
   const s = await getSettings();
   await updateSettings({ customStores: (s.customStores ?? []).map((x) => (x.id === id ? { ...x, name: n, shortName: shortNameOf(n) } : x)) });
+  // 記録に添えた店舗名も新しい名前にする（削除後や他の人の端末でも新しい名前で見えるように）
+  const ws = await db().workouts.where("storeId").equals(id).toArray();
+  if (ws.length) {
+    await db().workouts.bulkPut(ws.map((w) => ({ ...w, storeLabel: n })));
+    notify({ type: "bulk" });
+  }
 }
 
 /** 追加した店舗を削除する。記録は残し、店舗名を記録側に保存しておく */
@@ -166,10 +207,10 @@ export async function deleteStore(id: StoreId): Promise<void> {
   const s = await getSettings();
   const store = (s.customStores ?? []).find((x) => x.id === id);
   if (!store) return;
-  const ws = (await db().workouts.where("storeId").equals(id).toArray()).filter((w) => !w.storeLabel);
+  const ws = await db().workouts.where("storeId").equals(id).toArray();
   if (ws.length) await db().workouts.bulkPut(ws.map((w) => ({ ...w, storeLabel: store.name })));
   await db().storeEquipment.where("storeId").equals(id).delete();
-  await updateSettings({ customStores: (s.customStores ?? []).filter((x) => x.id !== id), lastStoreId: s.lastStoreId === id ? "ichijoji" : s.lastStoreId });
+  await updateSettings({ customStores: (s.customStores ?? []).filter((x) => x.id !== id), lastStoreId: s.lastStoreId === id ? undefined : s.lastStoreId });
 }
 
 export async function countWorkoutsAtStore(id: StoreId): Promise<number> {

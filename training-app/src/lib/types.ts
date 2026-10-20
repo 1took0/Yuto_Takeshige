@@ -174,6 +174,8 @@ export interface PreviousPerformance {
   workoutId: string;
   trainingDate: string;
   storeId: StoreId;
+  /** 記録時の店舗名（削除した店舗でも表示できるように） */
+  storeLabel?: string;
   sets: { weight?: number; reps?: number; actualReps?: number; seconds?: number; left?: SideRecord; right?: SideRecord }[];
 }
 
@@ -282,6 +284,8 @@ export interface Settings {
   id: "settings";
   theme: "system" | "light" | "dark";
   lastStoreId?: StoreId;
+  /** 表示しない標準店舗（LifeFit を使わない人向け。記録と器具の設定は残る） */
+  hiddenStoreIds?: StoreId[];
   lastTimeLimitMin?: number | null;
   lastCardio?: CardioChoice;
   sound: boolean;

@@ -1,4 +1,4 @@
-import type { StoreEquipment, Workout } from "@/lib/types";
+import type { StoreDef, StoreEquipment, Workout } from "@/lib/types";
 import { workoutStoreName } from "@/lib/catalog/stores";
 
 export interface ExportBundle {
@@ -7,10 +7,12 @@ export interface ExportBundle {
   exportedAt: string;
   workouts: Workout[];
   storeEquipment: StoreEquipment[];
+  /** 追加した店舗（別端末に移しても記録と店舗が結びつくように） */
+  customStores?: StoreDef[];
 }
 
-export function toJSON(workouts: Workout[], storeEquipment: StoreEquipment[]): string {
-  const bundle: ExportBundle = { app: "training-coach", version: 1, exportedAt: new Date().toISOString(), workouts, storeEquipment };
+export function toJSON(workouts: Workout[], storeEquipment: StoreEquipment[], customStores: StoreDef[] = []): string {
+  const bundle: ExportBundle = { app: "training-coach", version: 1, exportedAt: new Date().toISOString(), workouts, storeEquipment, customStores };
   return JSON.stringify(bundle, null, 2);
 }
 

@@ -12,8 +12,13 @@ import type { StoreId } from "@/lib/types";
 export function HistoryList() {
   const workouts = useLiveQuery(() => listCompletedWorkouts(), [], []);
   const [store, setStore] = useState<StoreId | "all">("all");
-  const allStoreList = useStores();
-  const stores = allStoreList.filter((s) => workouts.some((w) => w.storeId === s.id));
+  useStores();
+  // 記録に出てくる店舗（削除した店舗・表示しない店舗も記録時の名前で）
+  const stores = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of workouts) if (!m.has(w.storeId)) m.set(w.storeId, workoutStoreName(w, true));
+    return [...m].map(([id, shortName]) => ({ id: id as StoreId, shortName }));
+  }, [workouts]);
   const [view, setView] = useState<"list" | "week" | "month">("list");
   const today = trainingDateOf();
   const filtered = useMemo(() => workouts.filter((w) => store === "all" || w.storeId === store), [workouts, store]);

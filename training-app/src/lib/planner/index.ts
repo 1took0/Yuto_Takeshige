@@ -3,7 +3,7 @@ import { EQUIPMENT_STYLE_LABEL, INTENSITY_LABEL, isNovice, prefsOrEmpty } from "
 import { goalsOrDefault, strengthFocused, wantsCardio } from "@/lib/goals";
 import { allExercises, customExercises, exerciseName, getExercise, isExerciseDeleted } from "@/lib/catalog/exercises";
 import { MUSCLE_TO_REGION, REGION_LABEL } from "@/lib/catalog/muscles";
-import { storeName, workoutStoreName } from "@/lib/catalog/stores";
+import { isBuiltinStore, storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
@@ -47,19 +47,21 @@ interface Slot {
 }
 
 const SLOTS: Slot[] = [
-  { key: "legs_compound", candidates: ["leg_press", "db_goblet_squat"], regions: ["legs", "glutes"], base: 100, core: true },
-  { key: "hamstrings", candidates: ["leg_curl", "db_rdl"], regions: ["legs"], base: 92, core: true },
+  // 各枠の候補：LifeFit のマシンを先に、同じ部位のフリーウェイト・プレート式・スミス・自重の種目を後ろに置く
+  // （後ろの種目は、その店舗に器具があって種目一覧に入っているときだけ選ばれる。LifeFit 以外のジムのため）
+  { key: "legs_compound", candidates: ["leg_press", "db_goblet_squat", "bb_squat", "smith_squat", "hack_squat", "plate_leg_press_45"], regions: ["legs", "glutes"], base: 100, core: true },
+  { key: "hamstrings", candidates: ["leg_curl", "db_rdl", "bb_deadlift"], regions: ["legs"], base: 92, core: true },
   { key: "glutes", candidates: ["abductor", "hip_thrust", "db_lunge"], regions: ["glutes"], base: 90, core: true },
-  { key: "chest_press", candidates: ["chest_press", "db_bench_press"], regions: ["chest"], base: 98, core: true },
-  { key: "back_vertical", candidates: ["lat_pulldown", "assisted_chin", "pulldown_trainer"], regions: ["back"], base: 98, core: true },
-  { key: "back_horizontal", candidates: ["seated_row", "plate_row", "db_row"], regions: ["back"], base: 95, core: true },
-  { key: "abs", candidates: ["abdominal"], regions: ["abs"], base: 93, core: true },
+  { key: "chest_press", candidates: ["chest_press", "db_bench_press", "bb_bench_press", "smith_bench_press", "plate_chest_press", "converging_chest_press"], regions: ["chest"], base: 98, core: true },
+  { key: "back_vertical", candidates: ["lat_pulldown", "assisted_chin", "pulldown_trainer", "plate_lat_pulldown", "chin_up"], regions: ["back"], base: 98, core: true },
+  { key: "back_horizontal", candidates: ["seated_row", "plate_row", "db_row", "bb_row"], regions: ["back"], base: 95, core: true },
+  { key: "abs", candidates: ["abdominal", "decline_situp", "captain_chair_leg_raise", "rotary_torso"], regions: ["abs"], base: 93, core: true },
   { key: "chest_iso", candidates: ["pec_fly", "db_fly"], regions: ["chest"], base: 80 },
   { key: "biceps_hammer", candidates: ["db_hammer_curl_single"], regions: ["arms"], base: 82 },
-  { key: "triceps", candidates: ["triceps", "db_kickback"], regions: ["arms"], base: 80 },
-  { key: "biceps", candidates: ["biceps_curl", "db_curl_single"], regions: ["arms"], base: 78 },
+  { key: "triceps", candidates: ["triceps", "db_kickback", "dips", "db_french_press"], regions: ["arms"], base: 80 },
+  { key: "biceps", candidates: ["biceps_curl", "db_curl_single", "ez_bar_curl"], regions: ["arms"], base: 78 },
   { key: "core", candidates: ["side_plank", "plank"], regions: ["abs"], base: 76 },
-  { key: "shoulders", candidates: ["shoulder_press", "db_shoulder_press", "db_lateral_raise"], regions: ["shoulders"], base: 70 },
+  { key: "shoulders", candidates: ["shoulder_press", "db_shoulder_press", "db_lateral_raise", "plate_shoulder_press", "smith_shoulder_press"], regions: ["shoulders"], base: 70 },
   { key: "quads_iso", candidates: ["leg_extension"], regions: ["legs"], base: 66 },
   { key: "abs_2", candidates: ["knee_leg_raise"], regions: ["abs"], base: 64 },
   { key: "hip_thrust_extra", candidates: ["hip_thrust"], regions: ["glutes"], base: 62 },
@@ -116,10 +118,19 @@ interface Availability {
 }
 
 function availability(storeEquipment: StoreEquipment[], storeId: string, equipmentId: string): Availability {
+  // 「その他の器具」は自作種目の受け皿で、店舗の器具としては扱わない（常に使える）
+  if (equipmentId === "other") return { ok: true, confirmed: true };
   const row = storeEquipment.find((r) => r.storeId === storeId && r.equipmentId === equipmentId);
-  // 「その他の器具」は店舗の器具一覧に無いので、使える前提（未確認）で扱う
-  if (!row) return equipmentId === "other" ? { ok: true, confirmed: false } : { ok: false, confirmed: false };
-  return { ok: row.available, confirmed: row.confirmed };
+  if (row) return { ok: row.available, confirmed: row.confirmed };
+  // 追加した店舗で行が無い器具（カタログに後から増えた器具）は、設定画面の表示と同じく「未確認」
+  if (!isBuiltinStore(storeId) && storeEquipment.some((r) => r.storeId === storeId)) return { ok: true, confirmed: false };
+  return { ok: false, confirmed: false };
+}
+
+/** その店舗で「ある」と確認した器具が1つも無い（追加したばかりで、すべて未確認） */
+function nothingConfirmedAt(storeEquipment: StoreEquipment[], storeId: string): boolean {
+  const rows = storeEquipment.filter((r) => r.storeId === storeId);
+  return rows.length > 0 && !rows.some((r) => r.confirmed);
 }
 
 export interface SorenessInfo {
@@ -199,15 +210,19 @@ export function generatePlan(input: PlanInput): PlanResult {
   const comeback = detectComeback(lastDate ? diffDays(today, lastDate) : undefined, intake.memo);
 
   // ---- 有酸素の方針と時間配分 ----
-  const noCardio = intake.cardio === "none";
+  // 店舗の器具でトレッドミル・バイクを「ない」にしていれば入れない
+  const noTreadmillHere = !availability(storeEquipment, store, "treadmill").ok;
+  const noBikeHere = !availability(storeEquipment, store, "bike").ok;
+  const allUnconfirmed = nothingConfirmedAt(storeEquipment, store);
+  const noCardio = intake.cardio === "none" || noTreadmillHere;
   const tm = noCardio ? { mode: "walk" as const } : decideTreadmillMode(intake);
   const budget = computeBudget(intake, tm.mode, wantsCardio(goals));
   if (tm.reason) warnings.push(tm.reason);
   // ウォームアップのバイクは押し付けない：ヒアリングで「使わない」と答えた人、答えていなければ
   // その日に有酸素「なし」を選んだ人と、これまでの記録でバイクを一度も行っていない人には入れない（その分は筋トレに回す）
   const cardioUse = cardioHabits(history, today);
-  const noBike = prefs.warmupBike === "no" || (prefs.warmupBike !== "yes" && (noCardio || skipsCardio(cardioUse, "bike")));
-  const noBikeReason = prefs.warmupBike === "no" ? "ヒアリングでバイクを使わないと答えているため" : noCardio ? "有酸素なしを選んだため" : "これまでの記録にバイクが無いため";
+  const noBike = noBikeHere || prefs.warmupBike === "no" || (prefs.warmupBike !== "yes" && (noCardio || skipsCardio(cardioUse, "bike")));
+  const noBikeReason = noBikeHere ? "この店舗にバイクが無いため" : prefs.warmupBike === "no" ? "ヒアリングでバイクを使わないと答えているため" : noCardio ? "有酸素なしを選んだため" : "これまでの記録にバイクが無いため";
   if (noBike && budget.warmupMin > 0) {
     budget.strengthMin += budget.warmupMin;
     budget.warmupMin = 0;
@@ -244,7 +259,8 @@ export function generatePlan(input: PlanInput): PlanResult {
       const av = availability(storeEquipment, store, def.equipmentId);
       if (!av.ok) continue;
       // 将来導入候補は、その店舗で利用実績があるときのみ自動提案
-      if (def.optional && !pastIds.has(exId) && !usedAtStore(history, exId, store)) continue;
+      // （追加した店舗で器具を「ある」と確認している場合は、通常の候補として扱う）
+      if (def.optional && !(av.confirmed && !isBuiltinStore(store)) && !pastIds.has(exId) && !usedAtStore(history, exId, store)) continue;
       const painReason = painExcludes(def, pains);
       if (painReason) {
         warnings.push(`${def.name}：${painReason}`);
@@ -321,10 +337,10 @@ export function generatePlan(input: PlanInput): PlanResult {
       // 希望：強度
       if (prefs.intensity === "light") setsDelta -= 1;
       if (prefs.intensity === "hard" && slot.core) setsDelta += 1;
-      // 器具未確認の店舗は少し下げる
+      // 器具未確認の店舗は少し下げる（店舗全体が未確認のときは要約に1行だけ書き、種目ごとの注記は出さない）
       if (!av.confirmed) {
         score -= 5;
-        notes.push("この店舗での器具の有無は未確認です。無ければ設定から除外できます");
+        if (!allUnconfirmed) notes.push("この店舗での器具の有無は未確認です。無ければ設定から除外できます");
       }
       // 久しぶり
       if (comeback) {
@@ -374,6 +390,12 @@ export function generatePlan(input: PlanInput): PlanResult {
     remaining -= mins;
     chosen.push(c);
   }
+  // 器具が「ない」ばかりで種目が組めないときは知らせる（設定の確認か、手動の追加へ）
+  // （時間や重点部位で絞る前の、器具で選べた候補の数で判断する）
+  const coreSlots = SLOTS.filter((s) => s.core).length;
+  const coreFound = candidates.filter((c) => c.slot.core).length;
+  if (candidates.length < 3 || coreFound * 2 < coreSlots) warnings.push(`${storeName(store, true)}で「ある」になっている器具が少ないため、${chosen.length}種目しか組めませんでした。設定→店舗の器具で器具を確認するか、「＋ 種目を追加」で足してください`);
+  if (allUnconfirmed) summary.push(`${storeName(store, true)}の器具はまだ確認していないため、すべてあるものとして組んでいます。無い器具は設定→店舗の器具で「ない」にしてください`);
   // 実施順序：これまでの記録の並び順に合わせる。行ったことのない種目は、同じ器具の種類（ダンベル・マシンなど）の位置、
   // それも無ければ標準の順（脚→胸→背中→腕→腹筋・体幹）
   const order = new Map(slots.map((s, i) => [s.key, i]));
@@ -394,7 +416,7 @@ export function generatePlan(input: PlanInput): PlanResult {
   if (budget.warmupMin > 0) cardio.push(bikeWarmup(budget.warmupMin, intake.condition <= 2));
   const legsLight = sore.level === "light" && (sore.regions.has("legs") || sore.regions.has("glutes"));
   if (noCardio) {
-    summary.push("有酸素なし（希望により筋トレ中心）");
+    summary.push(noTreadmillHere && intake.cardio !== "none" ? "この店舗にトレッドミルが無いため、有酸素は入れていません" : "有酸素なし（希望により筋トレ中心）");
   } else if (tm.mode === "run") {
     const target = nextRunTarget(runHistory(history), legsLight, goals.runStartSpeedKmh);
     const plan = buildTreadmillPlan("run", budget.cardioMin, target);

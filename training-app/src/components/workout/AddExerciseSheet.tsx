@@ -10,12 +10,16 @@ import { useExercises } from "@/hooks/useSettings";
 import { CustomExerciseForm } from "@/components/settings/CustomExerciseForm";
 import { DeleteExerciseDialog } from "@/components/settings/CustomExerciseManager";
 import { CloseIcon } from "@/components/ui/Icons";
+import { deletedBuiltinExercises } from "@/lib/catalog/exercises";
+import { restoreExercise } from "@/lib/db/repo";
 import type { ExerciseDef } from "@/lib/types";
 
 export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = [] }: { open: boolean; onClose: () => void; storeId: StoreId; onAdd: (exerciseId: string) => void; excludedIds?: string[] }) {
   const equipment = useLiveQuery(() => listStoreEquipment(storeId), [storeId], []);
   const [q, setQ] = useState("");
-  const [showAll, setShowAll] = useState(false);
+  const [showAllState, setShowAll] = useState<boolean | null>(null);
+  // 器具の設定が無い店舗（削除した店舗の記録の編集など）では、最初からすべて表示する
+  const showAll = showAllState ?? (equipment.length === 0 && !!equipment);
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<ExerciseDef | null>(null);
   const all = useExercises();
@@ -32,7 +36,7 @@ export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = 
       <input className="input mb-2" placeholder="種目名・部位で検索" value={q} onChange={(e) => setQ(e.target.value)} aria-label="種目検索" />
       <label className="mb-2 flex items-center gap-2 text-xs text-muted">
         <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
-        この店舗に無い器具の種目も表示
+        この店舗に無い器具の種目・一覧に入れていない標準の種目も表示
       </label>
       <ul className="divide-y divide-border">
         {list.map(({ def, confirmed, unavailable }) => (
@@ -64,7 +68,33 @@ export function AddExerciseSheet({ open, onClose, storeId, onAdd, excludedIds = 
             </button>
           </li>
         ))}
-        {!list.length && <li className="py-6 text-center text-sm text-muted">該当する種目がありません</li>}
+        {showAll &&
+          deletedBuiltinExercises()
+            .filter((def) => !q || def.name.includes(q) || musclesLabel(def.primary).includes(q))
+            .map((def) => (
+              <li key={def.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="tap flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
+                  onClick={async () => {
+                    await restoreExercise(def.id);
+                    onAdd(def.id);
+                    onClose();
+                  }}
+                  data-testid="add-sheet-hidden"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold">
+                      {def.name}
+                      <span className="ml-1 rounded bg-card-2 px-1 text-[10px] text-muted">一覧に無い標準の種目</span>
+                    </div>
+                    <div className="text-xs text-muted">{musclesLabel(def.primary)} ・ 追加すると種目一覧にも加わります</div>
+                  </div>
+                  <span className="text-accent">＋</span>
+                </button>
+              </li>
+            ))}
+        {!list.length && !showAll && <li className="py-6 text-center text-sm text-muted">該当する種目がありません</li>}
       </ul>
       <CustomExerciseForm
         open={creating}

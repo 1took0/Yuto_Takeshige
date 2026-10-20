@@ -70,6 +70,7 @@ describe("人ごとの目標", () => {
   it("マシンが無い店舗ではダンベル種目で代替する", () => {
     const eq = equipment.map((r) => (r.storeId === "ichijoji" && r.equipmentId === "chest_press_machine" ? { ...r, available: false } : r));
     const w = generatePlan({ intake, history: buildSeedWorkouts(), storeEquipment: eq, settings: { excludedExerciseIds: [], goals: DEFAULT_GOALS }, now }).workout;
-    expect(w.exercises.map((e) => e.exerciseId)).toContain("db_bench_press");
+    // 同じ枠の別の種目（ダンベル・バーベル・スミスのベンチプレス）で代替する
+    expect(w.exercises.map((e) => e.exerciseId).some((id) => ["db_bench_press", "bb_bench_press", "smith_bench_press"].includes(id))).toBe(true);
   });
 });

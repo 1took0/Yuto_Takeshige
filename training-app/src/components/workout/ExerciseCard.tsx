@@ -117,7 +117,7 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
         <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
           {e.previous && (
             <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted">
-              前回 {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? "別の店舗"}：{" "}
+              前回 {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? e.previous.storeLabel ?? "別の店舗"}：{" "}
               <span className="text-fg tabular">
                 {e.previous.sets
                   .map((s) => (s.seconds !== undefined && s.weight === undefined ? `${s.seconds}秒` : s.left?.weight !== undefined ? `${s.left.weight}` : s.weight !== undefined ? `${s.weight}` : "?"))

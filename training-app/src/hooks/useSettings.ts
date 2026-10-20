@@ -21,7 +21,7 @@ export function applyTheme(theme: Settings["theme"]) {
 export function useSettings() {
   const settings = useLiveQuery(() => getSettings(), [], DEFAULT_SETTINGS);
   // 店舗名・種目をどこからでも同期的に引けるよう、追加分をレジストリに反映
-  setCustomStores(settings.customStores);
+  setCustomStores(settings.customStores, settings.hiddenStoreIds);
   setCustomExercises(settings.customExercises);
   setDeletedExercises(settings.deletedExerciseIds, settings.restoredExerciseIds);
   useEffect(() => {
@@ -39,7 +39,7 @@ export function useSettings() {
 /** 登録済みの全店舗（最初からある店舗＋追加した店舗） */
 export function useStores() {
   const { settings } = useSettings();
-  setCustomStores(settings.customStores);
+  setCustomStores(settings.customStores, settings.hiddenStoreIds);
   return allStores();
 }
 

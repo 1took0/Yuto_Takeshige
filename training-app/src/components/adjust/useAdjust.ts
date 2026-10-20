@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveWorkout } from "@/components/workout/ActiveWorkoutProvider";
 import { useSettings } from "@/hooks/useSettings";
+import { defaultStoreId } from "@/lib/catalog/stores";
 import { respond, type CoachReply, type Intent } from "@/lib/coach/intents";
 import type { WishOp } from "@/lib/preferences";
 import { applyPlanPatch } from "@/lib/coach/applyPatch";
@@ -81,7 +82,7 @@ export function useAdjust() {
           return;
         }
         const [history, equipment] = await Promise.all([listCompletedWorkouts(), listStoreEquipment()]);
-        const storeId = workout?.storeId ?? settings.lastStoreId ?? "ichijoji";
+        const storeId = workout?.storeId ?? defaultStoreId(settings.lastStoreId);
         const availableIds = new Set(availableExercises(equipment, storeId, settings.excludedExerciseIds).map((a) => a.def.id));
         setMessages((m) => [...m, applyReply(respond(action.intent, workout, { history, availableIds }))]);
       } finally {

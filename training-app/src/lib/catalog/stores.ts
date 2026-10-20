@@ -14,29 +14,52 @@ export function isBuiltinStore(id: StoreId): id is BuiltinStoreId {
   return BUILTIN_STORES.some((s) => s.id === id);
 }
 
-// 追加した店舗（設定から読み込み、同期的に参照できるよう保持する）
+// 追加した店舗と、表示しない標準店舗（設定から読み込み、同期的に参照できるよう保持する）
 let customStores: StoreDef[] = [];
+let hiddenIds = new Set<string>();
 
-export function setCustomStores(list: StoreDef[] | undefined) {
+export function setCustomStores(list: StoreDef[] | undefined, hidden?: StoreId[]) {
   customStores = list ?? [];
+  hiddenIds = new Set(hidden ?? []);
 }
 
+/** 選べる店舗（表示しない標準店舗を除く） */
 export function allStores(): StoreDef[] {
+  return [...BUILTIN_STORES.filter((s) => !hiddenIds.has(s.id)), ...customStores];
+}
+
+/** 表示しない店舗も含めた全店舗（記録の店舗名の解決用） */
+export function allStoresIncludingHidden(): StoreDef[] {
   return [...BUILTIN_STORES, ...customStores];
 }
 
-export function findStore(id: StoreId): StoreDef | undefined {
-  return allStores().find((s) => s.id === id);
+export function isStoreHidden(id: StoreId): boolean {
+  return hiddenIds.has(id);
 }
 
-/** 店舗名から短い表示名を作る（「LifeFit」と末尾の「店」を省く） */
+export function findStore(id: StoreId): StoreDef | undefined {
+  return allStoresIncludingHidden().find((s) => s.id === id);
+}
+
+/**
+ * 次に使う店舗：前回の店舗が選べればそれ、無ければ追加した店舗の先頭、それも無ければ選べる店舗の先頭
+ * LifeFit を使わない人が追加した店舗を既定にできるよう、"ichijoji" に固定しない
+ */
+export function defaultStoreId(lastStoreId?: StoreId): StoreId {
+  const stores = allStores();
+  if (lastStoreId && stores.some((s) => s.id === lastStoreId)) return lastStoreId;
+  return stores.find((s) => s.custom)?.id ?? stores[0]?.id ?? BUILTIN_STORES[0].id;
+}
+
+/** 店舗名から短い表示名を作る（よくあるジム名の接頭辞と末尾の「店」を省き、長ければ8文字まで） */
 export function shortNameOf(name: string): string {
   const s = name
     .trim()
-    .replace(/^LifeFit\s*/i, "")
+    .replace(/^(LifeFit|ライフフィット|エニタイムフィットネス|エニタイム|ゴールドジム|ジョイフィット|JOYFIT|chocoZAP|チョコザップ|FIT365|コナミスポーツクラブ|ティップネス|セントラルスポーツ)\s*/i, "")
     .replace(/店$/, "")
     .trim();
-  return s || name.trim();
+  const out = s || name.trim();
+  return out.length > 8 ? `${out.slice(0, 8)}…` : out;
 }
 
 export function storeName(id: StoreId, short = false): string {

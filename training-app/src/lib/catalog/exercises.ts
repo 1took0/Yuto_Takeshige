@@ -1169,6 +1169,11 @@ export function deletedBuiltinExercises(): ExerciseDef[] {
   return EXERCISES.filter((e) => deletedIds.has(e.id));
 }
 
+/** その器具を使う、最初から一覧に入れていない標準の種目（器具を「ある」にしたときに戻す候補） */
+export function hiddenExercisesUsing(equipmentId: string): ExerciseDef[] {
+  return EXERCISES.filter((e) => e.equipmentId === equipmentId && deletedIds.has(e.id) && HIDDEN_BY_DEFAULT.has(e.id));
+}
+
 export function getExercise(id: string): ExerciseDef | undefined {
   return byId.get(id) ?? customById.get(id);
 }

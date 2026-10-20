@@ -1,5 +1,5 @@
 import type { BuiltinStoreId, StoreId } from "@/lib/types";
-import { allStores, isBuiltinStore } from "@/lib/catalog/stores";
+import { isBuiltinStore } from "@/lib/catalog/stores";
 
 /**
  * グラフの配色（dataviz 参照パレット、検証済み）
@@ -14,11 +14,11 @@ const OTHER = { light: "#8a8f99", dark: "#6b7280" };
 
 export function storeColor(storeId: StoreId, dark: boolean): string {
   if (isBuiltinStore(storeId)) return (dark ? STORE_SERIES_DARK : STORE_SERIES_LIGHT)[storeId];
-  const idx = allStores()
-    .filter((s) => s.custom)
-    .findIndex((s) => s.id === storeId);
+  // 追加した店舗は id から色を決める（店舗を削除しても他の店舗の色が変わらず、他の人の端末でも同じ色になる）
   const pal = dark ? CUSTOM_DARK : CUSTOM_LIGHT;
-  return idx >= 0 && idx < pal.length ? pal[idx] : dark ? OTHER.dark : OTHER.light;
+  let h = 0;
+  for (const ch of storeId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return storeId ? pal[h % pal.length] : dark ? OTHER.dark : OTHER.light;
 }
 
 export const SERIES = {
