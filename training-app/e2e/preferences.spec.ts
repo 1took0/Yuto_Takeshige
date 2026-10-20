@@ -12,19 +12,21 @@ test("初回ヒアリングの希望と「トレーニングを調整」で選�
   await expect(page).toHaveURL(/\/welcome/);
   await page.getByTestId("welcome-name").fill("ジロウ");
   await page.getByTestId("welcome-submit").click();
-  await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
 
-  // 初めてのトレーニング：先に希望を質問される
-  await page.getByTestId("start").click();
+  // パスワード・はじめにの後に、続けてヒアリングが出る（スキップもできる）
+  await expect(page).toHaveURL(/\/hearing/);
   await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  await expect(page.getByTestId("prefs-skip")).toBeVisible();
   await page.getByRole("radio", { name: "はじめて" }).click();
   await page.getByRole("radiogroup", { name: "1回のトレーニング時間" }).getByRole("radio", { name: "60分" }).click();
   await page.getByRole("radiogroup", { name: "有酸素運動の希望" }).getByRole("radio", { name: "なし" }).click();
   await page.getByTestId("prefs-wish").fill("レッグプレスはやりたくない");
   await expect(page.getByTestId("prefs-wish-preview")).toContainText("レッグプレスは自動作成で選ばない");
   await page.getByTestId("prefs-submit").click();
+  await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
 
-  // 今日のコンディション：希望が初期値になっている
+  // 初めてのトレーニング：ヒアリングは済んでいるので、今日のコンディションから。希望が初期値になっている
+  await page.getByTestId("start").click();
   await expect(page.getByRole("heading", { name: "今日のコンディション" })).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: "有酸素" }).getByRole("radio", { name: "なし" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radiogroup", { name: "時間" }).getByRole("radio", { name: "60分" })).toHaveAttribute("aria-checked", "true");

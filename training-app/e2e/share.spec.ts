@@ -18,6 +18,9 @@ async function onboard(page: Page, name: string, opts: { importSeed?: boolean; s
   await page.getByTestId("welcome-name").fill(name);
   if (opts.share) await page.getByTestId("welcome-share").check();
   await page.getByTestId("welcome-submit").click();
+  // 初めての人は続けてヒアリングが出る（ここではスキップ）
+  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  await page.getByTestId("prefs-skip").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
   if (opts.importSeed) {
     await page.goto("/restore");
@@ -35,6 +38,9 @@ test("新しい利用者は空の履歴から始まり、目標を設定でき�
   await page.getByRole("button", { name: "筋力向上" }).click();
   await page.getByRole("radio", { name: "右が弱い" }).click();
   await page.getByTestId("welcome-submit").click();
+  // 初めての人は続けてヒアリングが出る（ここではスキップ）
+  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  await page.getByTestId("prefs-skip").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
   await page.goto("/history");
   await expect(page.getByText("記録がありません")).toBeVisible();
@@ -104,9 +110,9 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
   await expect(b.getByTestId("community-user").filter({ hasText: nameA })).toHaveCount(0);
 
   // B がトレーニングを保存すると自動で共有される
+  // ヒアリングは「はじめに」の後でスキップ済みなので、今日のコンディションから
   await b.goto("/start");
-  // 記録の無い新しい利用者は、最初に希望のヒアリングがある（ここではスキップ）
-  await b.getByTestId("prefs-skip").click();
+  await expect(b.getByRole("heading", { name: "今日のコンディション" })).toBeVisible();
   await b.getByRole("radio", { name: "30分" }).click();
   await b.getByTestId("generate").click();
   await b.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();

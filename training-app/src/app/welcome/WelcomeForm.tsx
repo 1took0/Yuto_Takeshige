@@ -44,7 +44,8 @@ export function WelcomeForm() {
           toast(`共有の開始に失敗しました：${e instanceof Error ? e.message : ""}（設定画面から再試行できます）`, "error");
         }
       }
-      router.replace("/");
+      // 初めての人は続けてヒアリングへ（答えたことがある人はホームへ）
+      router.replace(s.preferences?.answeredAt ? "/" : "/hearing");
     } finally {
       setBusy(false);
     }

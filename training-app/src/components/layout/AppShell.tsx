@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       .then((s) => {
         // 初回設定が済んでいなければ「はじめに」へ
         const path = window.location.pathname;
-        if (!cancelled && !s.onboarded && path !== "/welcome" && path !== "/login" && path !== "/restore") router.replace("/welcome");
+        if (!cancelled && !s.onboarded && path !== "/welcome" && path !== "/login" && path !== "/restore" && path !== "/hearing") router.replace("/welcome");
       })
       .finally(() => !cancelled && setReady(true));
     return () => {
@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) => console.warn("SW 登録失敗", e));
   }, []);
 
-  const hideNav = pathname.startsWith("/timer/") || pathname === "/start" || pathname === "/welcome" || pathname === "/login" || pathname === "/restore" || pathname === "/preferences";
+  const hideNav = pathname.startsWith("/timer/") || pathname === "/start" || pathname === "/welcome" || pathname === "/login" || pathname === "/restore" || pathname === "/preferences" || pathname === "/hearing";
 
   return (
     <ToastProvider>

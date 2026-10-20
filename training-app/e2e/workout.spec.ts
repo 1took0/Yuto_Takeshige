@@ -10,6 +10,9 @@ async function onboard(page: Page, opts: { name?: string; importSeed?: boolean; 
   await page.getByTestId("welcome-name").fill(opts.name ?? "テスト");
   if (opts.share) await page.getByTestId("welcome-share").check();
   await page.getByTestId("welcome-submit").click();
+  // 初めての人は続けてヒアリングが出る（ここではスキップ）
+  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  await page.getByTestId("prefs-skip").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
   if (opts.importSeed ?? true) await restoreOwner(page);
 }
