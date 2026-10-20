@@ -55,7 +55,7 @@ export function WelcomeForm() {
 
       <section className="card space-y-2 p-3">
         <h2 className="font-semibold">表示名</h2>
-        <input className="input" placeholder="例：ゆうと" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} aria-label="表示名" data-testid="welcome-name" />
+        <input className="input" placeholder="例：のつ" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} aria-label="表示名" data-testid="welcome-name" />
         <p className="text-[11px] text-muted">記録を共有したときに、他の利用者に表示される名前です。</p>
       </section>
 
