@@ -8,7 +8,7 @@ import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
 import { detectComeback, type Comeback } from "./comeback";
-import { manualHabits, cardioHabits, skipsCardio } from "./habits";
+import { cardioHabits, equipmentGroupOf, manualHabits, skipsCardio, trainingHabits } from "./habits";
 import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
 import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
@@ -216,8 +216,10 @@ export function generatePlan(input: PlanInput): PlanResult {
   const usedExercise = new Set<string>();
   // 自作種目のうち「メニュー自動作成に含める」ものは、それぞれ独立した枠として候補に加える
   const slots: Slot[] = [...SLOTS, ...customExercises().filter((d) => d.autoMenu).map((d) => ({ key: `custom:${d.id}`, candidates: [d.id], regions: d.regions, base: 60 }))];
-  // 自分で入力したメニューでよく行う種目は、自動作成の枠に無い種目（自作種目など）でも候補に加える
-  const habits = manualHabits(history, today);
+  // これまでの記録でよく行う種目は、自動作成の枠に無い種目（自作種目など）でも候補に加える
+  const habits = trainingHabits(history, today);
+  // 自分で入力したメニュー（自分で選んだ種目）は、自動作成の記録より強く参考にする
+  const manual = manualHabits(history, today);
   for (const [id, f] of habits.freq) {
     const def = getExercise(id);
     if (!def || f < 1 / 3 || slots.some((sl) => sl.candidates.includes(id))) continue;
@@ -251,12 +253,13 @@ export function generatePlan(input: PlanInput): PlanResult {
       let loadFactor = 1;
       let setsDelta = 0;
 
-      // 自分で入力したメニューでよく行う種目は選びやすく、自分のメニューに一度も入れていない種目は少し選びにくく
-      const habit = habits.freq.get(exId) ?? 0;
-      if (habit > 0) {
-        score += 40 * habit;
-        notes.push("自分で組んだメニューでよく行っている種目です");
-      } else if (habits.count >= 2) score -= 10;
+      // これまでの記録でよく行う種目は選びやすく（自分で入力したメニューの種目は特に）、
+      // 自分のメニューに一度も入れていない種目は少し選びにくく。ダンベル優先・定期的に入れたい種目などの設定はこれより優先する
+      const habitBoost = Math.max(40 * (manual.freq.get(exId) ?? 0), 15 * (habits.freq.get(exId) ?? 0));
+      if (habitBoost > 0) {
+        score += habitBoost;
+        notes.push(manual.freq.get(exId) ? "自分で組んだメニューでよく行っている種目です" : "これまでの記録でよく行っている種目です");
+      } else if (manual.count >= 2) score -= 10;
       // ヒアリングで「これまでに行っていた」と答えた種目は選びやすく
       if (pastIds.has(exId)) {
         score += 40;
@@ -293,7 +296,8 @@ export function generatePlan(input: PlanInput): PlanResult {
       // 目標：特に鍛えたい部位（おまかせ・全身のとき）
       if (!focusRegions && goals.priorityRegions.length && slot.regions.some((r) => goals.priorityRegions.includes(r))) score += 6;
       // 目標：定期的に入れたい種目（直近2回でやっていなければ加点）
-      if (goals.favoriteExerciseIds.includes(exId) && !doneInLastN(history, exId, 2)) score += 30;
+      // 記録から学んだ好み（最大+15）より強く効かせる
+      if (goals.favoriteExerciseIds.includes(exId) && !doneInLastN(history, exId, 2)) score += 45;
       // 目標：握力・前腕 → ハンマーカール、腰痛対策 → 体幹・腰
       if (goals.objectives.includes("grip") && exId === "db_hammer_curl_single") score += 5;
       if (goals.objectives.includes("lowback") && (slot.key === "core" || slot.key === "lower_back")) score += 8;
@@ -366,9 +370,14 @@ export function generatePlan(input: PlanInput): PlanResult {
     remaining -= mins;
     chosen.push(c);
   }
-  // 実施順序：自分で入力したメニューの並び順があればそれに合わせ、無い種目は標準の順（脚→胸→背中→腕→腹筋・体幹）
+  // 実施順序：これまでの記録の並び順に合わせる。行ったことのない種目は、同じ器具の種類（ダンベル・マシンなど）の位置、
+  // それも無ければ標準の順（脚→胸→背中→腕→腹筋・体幹）
   const order = new Map(slots.map((s, i) => [s.key, i]));
-  const posOf = (c: Candidate) => habits.position.get(c.def.id) ?? (order.get(c.slot.key) ?? slots.length) / slots.length;
+  const groupPos = (id: string) => {
+    const g = equipmentGroupOf(id);
+    return g ? habits.groupPosition.get(g) : undefined;
+  };
+  const posOf = (c: Candidate) => habits.position.get(c.def.id) ?? groupPos(c.def.id) ?? (order.get(c.slot.key) ?? slots.length) / slots.length;
   if (habits.count > 0) chosen.sort((a, b) => posOf(a) - posOf(b));
   else chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
 
@@ -392,11 +401,25 @@ export function generatePlan(input: PlanInput): PlanResult {
     summary.push(`トレッドミル ウォーキング ${Math.round(planTotalMin(plan))}分`);
   }
 
+  // 有酸素の位置：これまでの記録でバイク・トレッドミルを行った位置（最初／途中／最後）に合わせる
+  // 記録が無ければ、ウォームアップのバイクは最初、トレッドミルは最後
+  const itemPos = new Map<string, number>();
+  chosen.forEach((c, i) => itemPos.set(exercises[i].id, habits.count > 0 ? posOf(c) : i / Math.max(1, chosen.length)));
+  for (const c of cardio) {
+    const learned = habits.cardioPosition.get(c.machine);
+    itemPos.set(c.id, learned ? learned.pos : c.role === "warmup" ? -1 : 2);
+  }
+  const itemOrder = [...itemPos.keys()].sort((a, b) => itemPos.get(a)! - itemPos.get(b)!);
+  const firstEx = itemOrder.findIndex((id) => exercises.some((e) => e.id === id));
+  const cardioFirst = cardio.filter((c) => c.role !== "warmup" && itemOrder.indexOf(c.id) < firstEx);
+  const cardioLast = cardio.filter((c) => c.role === "warmup" && itemOrder.indexOf(c.id) > firstEx);
+  if (cardioFirst.length || cardioLast.length) summary.push(`これまでの記録に合わせて、${[...cardioFirst.map((c) => (c.machine === "bike" ? "バイク" : "トレッドミル") + "を筋トレの前"), ...cardioLast.map((c) => (c.machine === "bike" ? "バイク" : "トレッドミル") + "を筋トレの後")].join("・")}にしています`);
+
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
   summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）${budget.warmupMin ? `＋バイク${budget.warmupMin}分` : ""}`);
   if (noBike) summary.push("これまでの記録にバイクが無いため、ウォームアップのバイクは入れていません");
   if (comeback) summary.push(comeback.label);
-  if (habits.count > 0) summary.push(`自分で組んだメニュー（直近${habits.count}回）の種目・順番を参考にしました`);
+  if (habits.count > 0) summary.push(`これまでの記録（直近${habits.count}回）の種目・順番を参考にしました`);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);
   const wishes = preferenceSummary(prefs, goals);
   if (wishes.length) summary.push(`希望を反映：${wishes.join("・")}`);
@@ -410,6 +433,7 @@ export function generatePlan(input: PlanInput): PlanResult {
     intake,
     exercises,
     cardio,
+    itemOrder,
     status: "active",
     source: "app",
     ui: { focusedExerciseId: null },

@@ -52,7 +52,7 @@ describe("自分で入力したメニュー", () => {
     expect(ids).toContain("face_pull");
     expect(ids.indexOf("face_pull")).toBeLessThan(ids.indexOf("chest_press"));
     expect(ids.indexOf("chest_press")).toBeLessThan(ids.indexOf("leg_press"));
-    expect(summary.some((s) => s.includes("自分で組んだメニュー"))).toBe(true);
+    expect(summary.some((s) => s.includes("これまでの記録"))).toBe(true);
   });
 
   it("重量と回数は自分のメニューの記録から進める（全セット達成なので前に進む）", () => {
