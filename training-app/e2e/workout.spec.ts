@@ -631,7 +631,11 @@ test("種目一覧の × で標準の種目を削除でき、種目の追加に�
   await list.getByRole("button", { name: "ペックフライを削除" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
   await expect(list.getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(0);
-  await expect(page.getByTestId("deleted-ex")).toContainText("1件");
+  await page.getByTestId("deleted-ex").locator("summary").click();
+  await expect(page.getByTestId("deleted-ex")).toContainText("ペックフライ");
+  // 標準から外した種目（例：デッドリフト）は最初から一覧に入っていない
+  await expect(list.getByTestId("exercise-row").filter({ hasText: /^デッドリフト/ })).toHaveCount(0);
+  await expect(page.getByTestId("deleted-ex")).toContainText("デッドリフト");
 
   // 「定期的に入れたい種目」も種目一覧にある種目だけ
   await page.goto("/settings#goals");
@@ -658,7 +662,7 @@ test("種目一覧の × で標準の種目を削除でき、種目の追加に�
   // 設定から元に戻す
   await page.goto("/settings#exercises");
   await page.getByTestId("deleted-ex").locator("summary").click();
-  await page.getByTestId("deleted-ex").locator("li", { hasText: "ペックフライ" }).getByRole("button", { name: "元に戻す" }).click();
+  await page.getByTestId("deleted-ex").locator("li", { hasText: "ペックフライ" }).getByRole("button", { name: "一覧に加える" }).click();
   await expect(page.getByTestId("custom-ex-list").getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(1);
 });
 

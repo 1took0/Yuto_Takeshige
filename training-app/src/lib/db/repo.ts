@@ -4,7 +4,7 @@ import { applyWishOps, type WishOp } from "@/lib/preferences";
 import { newId } from "@/lib/id";
 import { defaultStoreEquipment, equipmentForNewStore } from "@/lib/catalog/storeEquipmentDefaults";
 import { isBuiltinStore, newStoreId, setCustomStores, shortNameOf } from "@/lib/catalog/stores";
-import { EXERCISES, allExercises, buildCustomExercise, newCustomExerciseId, setCustomExercises, setDeletedExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
+import { EXERCISES, HIDDEN_BY_DEFAULT, allExercises, buildCustomExercise, newCustomExerciseId, setCustomExercises, setDeletedExercises, type CustomExerciseInput } from "@/lib/catalog/exercises";
 import type { TimerHistoryEntry, TimerType } from "@/lib/timer/presets";
 import { addToHistory } from "@/lib/timer/presets";
 import type { TimerSegment } from "@/lib/timer/engine";
@@ -27,7 +27,7 @@ export async function getSettings(): Promise<Settings> {
   const merged = s ? { ...DEFAULT_SETTINGS, ...s } : DEFAULT_SETTINGS;
   setCustomStores(merged.customStores);
   setCustomExercises(merged.customExercises);
-  setDeletedExercises(merged.deletedExerciseIds);
+  setDeletedExercises(merged.deletedExerciseIds, merged.restoredExerciseIds);
   return merged;
 }
 
@@ -38,7 +38,7 @@ export async function updateSettings(patch: Partial<Settings>): Promise<Settings
   // 追加した店舗・種目をすぐに参照できるようにする（画面の再描画を待たない）
   setCustomStores(next.customStores);
   setCustomExercises(next.customExercises);
-  setDeletedExercises(next.deletedExerciseIds);
+  setDeletedExercises(next.deletedExerciseIds, next.restoredExerciseIds);
   return next;
 }
 
@@ -218,6 +218,7 @@ export async function deleteExercise(id: string): Promise<void> {
   if (!EXERCISES.some((e) => e.id === id)) return;
   await updateSettings({
     deletedExerciseIds: [...new Set([...(s.deletedExerciseIds ?? []), id])],
+    restoredExerciseIds: (s.restoredExerciseIds ?? []).filter((x) => x !== id),
     goals: s.goals ? { ...s.goals, favoriteExerciseIds: s.goals.favoriteExerciseIds.filter((x) => x !== id) } : s.goals,
     // 「自動メニューから除外する種目」も種目一覧に合わせる
     excludedExerciseIds: s.excludedExerciseIds.filter((x) => x !== id),
@@ -227,7 +228,11 @@ export async function deleteExercise(id: string): Promise<void> {
 /** 削除した標準の種目を一覧に戻す */
 export async function restoreExercise(id: string): Promise<void> {
   const s = await getSettings();
-  await updateSettings({ deletedExerciseIds: (s.deletedExerciseIds ?? []).filter((x) => x !== id) });
+  await updateSettings({
+    deletedExerciseIds: (s.deletedExerciseIds ?? []).filter((x) => x !== id),
+    // 最初は一覧に無い種目は「加えた」ことを覚えておく
+    restoredExerciseIds: HIDDEN_BY_DEFAULT.has(id) ? [...new Set([...(s.restoredExerciseIds ?? []), id])] : s.restoredExerciseIds,
+  });
 }
 
 // ---------- KV ----------

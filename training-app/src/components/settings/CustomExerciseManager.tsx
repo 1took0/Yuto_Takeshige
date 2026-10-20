@@ -13,10 +13,12 @@ import type { ExerciseDef } from "@/lib/types";
 
 /** 種目の一覧（標準＋自作）。× で削除、自作の種目は編集・追加もできる */
 export function CustomExerciseManager() {
-  const { settings } = useSettings();
+  // 設定（削除・追加した種目）が変わったら描き直す
+  useSettings();
   const all = useExercises();
   // settings を読んでから引く（削除した種目のレジストリが最新になっている）
-  const deleted = settings.deletedExerciseIds?.length ? deletedBuiltinExercises() : [];
+  // useSettings が削除・追加した種目を反映した後の一覧
+  const deleted = deletedBuiltinExercises();
   const [q, setQ] = useState("");
   const [form, setForm] = useState<{ editing?: ExerciseDef } | null>(null);
   const [removing, setRemoving] = useState<ExerciseDef | null>(null);
@@ -62,13 +64,13 @@ export function CustomExerciseManager() {
         </ul>
         {deleted.length > 0 && (
           <details data-testid="deleted-ex">
-            <summary className="cursor-pointer text-xs font-semibold text-accent">削除した標準の種目（{deleted.length}件）</summary>
+            <summary className="cursor-pointer text-xs font-semibold text-accent">一覧に入っていない標準の種目（{deleted.length}件）</summary>
             <ul className="mt-1 divide-y divide-border">
               {deleted.map((e) => (
                 <li key={e.id} className="flex items-center gap-2 py-2 text-sm">
                   <span className="min-w-0 flex-1 truncate text-muted">{e.name}</span>
                   <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => restoreExercise(e.id)}>
-                    元に戻す
+                    一覧に加える
                   </button>
                 </li>
               ))}

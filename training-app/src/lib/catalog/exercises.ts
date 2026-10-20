@@ -1124,18 +1124,47 @@ export function setCustomExercises(list: ExerciseDef[] | undefined) {
   customById = new Map(customList.map((e) => [e.id, e]));
 }
 
-// 一覧から削除した標準の種目（getExercise では引ける＝過去の記録の名前は残る）
-let deletedIds = new Set<string>();
+/**
+ * 最初は種目一覧に入れない標準の種目
+ * 標準の種目一覧は「LifeFit 一乗寺店・東山二条店の器具（器具ごとに1種目）」「ベンチプレス」「ダンベルの代表的な5種目」
+ * 「作成者が行っていた種目」「今後追加する予定だった種目」にしぼる。ここに挙げた種目は「一覧に入っていない標準の種目」から加えられる
+ */
+export const HIDDEN_BY_DEFAULT = new Set([
+  "db_fly",
+  "db_lunge",
+  "db_rdl",
+  "db_kickback",
+  "db_incline_press",
+  "db_rear_raise",
+  "db_french_press",
+  "db_shrug",
+  "bb_squat",
+  "bb_deadlift",
+  "bb_row",
+  "smith_bench_press",
+  "smith_shoulder_press",
+  "ez_bar_curl",
+  "converging_chest_press",
+  "plate_leg_press_45",
+  "hack_squat",
+  "dips",
+  "captain_chair_leg_raise",
+]);
 
-export function setDeletedExercises(ids: string[] | undefined) {
-  deletedIds = new Set(ids ?? []);
+// 一覧に入っていない標準の種目（getExercise では引ける＝過去の記録の名前は残る）
+let deletedIds = new Set<string>([...HIDDEN_BY_DEFAULT]);
+
+/** @param ids 利用者が一覧から削除した種目 @param restored 最初は一覧に無い種目のうち、利用者が一覧に加えた種目 */
+export function setDeletedExercises(ids: string[] | undefined, restored?: string[]) {
+  const back = new Set(restored ?? []);
+  deletedIds = new Set([...[...HIDDEN_BY_DEFAULT].filter((id) => !back.has(id)), ...(ids ?? [])]);
 }
 
 export function isExerciseDeleted(id: string): boolean {
   return deletedIds.has(id);
 }
 
-/** 削除した標準の種目 */
+/** 一覧に入っていない標準の種目（削除したもの・最初から入れていないもの） */
 export function deletedBuiltinExercises(): ExerciseDef[] {
   return EXERCISES.filter((e) => deletedIds.has(e.id));
 }

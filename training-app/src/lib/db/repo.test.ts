@@ -128,8 +128,26 @@ describe("標準の種目の削除", () => {
     const ichijoji = availableExercises(await listStoreEquipment(), "ichijoji");
     expect(ichijoji.find((a) => a.def.id === "bb_bench_press")?.confirmed).toBe(true);
     expect(ichijoji.find((a) => a.def.id === "smith_squat")?.confirmed).toBe(true);
-    const sanjo = availableExercises(await listStoreEquipment(), "sanjo-ohashi");
-    expect(sanjo.find((a) => a.def.id === "hack_squat")?.confirmed).toBe(true);
+    // 標準の一覧から外した種目は、加えるまで種目の候補に出ない（器具はある）
+    expect(availableExercises(await listStoreEquipment(), "sanjo-ohashi").some((a) => a.def.id === "hack_squat")).toBe(false);
+  });
+
+  it("標準の種目一覧は、器具の種目・ベンチプレス・ダンベル5種目・作成者が行っていた種目・予定していた種目にしぼる。外した種目は加えられる", async () => {
+    const { allExercises } = await import("@/lib/catalog/exercises");
+    const { buildSeedWorkouts } = await import("@/lib/seed/history");
+    const { restoreExercise, deleteExercise, getSettings } = await import("./repo");
+    await getSettings();
+    const ids = new Set(allExercises().map((e) => e.id));
+    for (const w of buildSeedWorkouts()) for (const e of w.exercises) expect(ids.has(e.exerciseId)).toBe(true);
+    for (const id of ["calf_raise", "pallof_press", "face_pull", "bb_bench_press", "db_bench_press", "db_row", "db_shoulder_press", "db_lateral_raise", "db_goblet_squat"]) expect(ids.has(id)).toBe(true);
+    for (const id of ["hack_squat", "bb_deadlift", "db_fly", "db_shrug"]) expect(ids.has(id)).toBe(false);
+    // 外した種目を一覧に加え、また削除できる
+    await restoreExercise("hack_squat");
+    expect(allExercises().some((e) => e.id === "hack_squat")).toBe(true);
+    expect((await getSettings()).restoredExerciseIds).toContain("hack_squat");
+    await deleteExercise("hack_squat");
+    expect(allExercises().some((e) => e.id === "hack_squat")).toBe(false);
+    expect((await getSettings()).restoredExerciseIds ?? []).not.toContain("hack_squat");
   });
 });
 
