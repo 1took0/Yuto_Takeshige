@@ -124,6 +124,10 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
   // 「直近2週間のみんな」の表に共有している人の行がある
   await expect(b.getByTestId("activity-grid")).toBeVisible();
   await expect(b.getByTestId("activity-row").filter({ hasText: nameA })).toHaveCount(1);
+  // マスをタップすると、その日の詳細が下に出る
+  await b.locator(`[data-testid="activity-cell"][aria-label*="${nameA}"]`).first().click();
+  await expect(b.getByTestId("activity-detail")).toContainText(nameA);
+  await expect(b.getByTestId("activity-detail")).toContainText("セット");
   // 最近のトレーニングにも種目名は出ない
   await expect(b.getByTestId("feed-item").filter({ hasText: nameA }).first()).toBeVisible();
   await expect(b.getByTestId("feed-item").filter({ hasText: "レッグプレス" })).toHaveCount(0);
@@ -132,6 +136,8 @@ test("共有した人の記録だけが「みんな」に表示され、やめ�
   await userA.click();
   await expect(b.getByRole("heading", { name: `${nameA} さんの記録` })).toBeVisible();
   await expect(b.getByTestId("person-calendar")).toBeVisible();
+  await b.locator('[data-testid="calendar-cell"][aria-label*="10/16"]').click();
+  await expect(b.getByTestId("calendar-detail")).toContainText("10/16");
   await expect(b.getByTestId("user-workout").first()).toContainText("10/16");
   await expect(b.getByTestId("user-workout").first()).toContainText("東山二条");
   await expect(b.getByTestId("user-workout").first().getByTestId("session-amount")).toContainText("セット");

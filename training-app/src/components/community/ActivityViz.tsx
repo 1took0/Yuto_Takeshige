@@ -9,7 +9,8 @@ import { formatJaDate, shiftYMD } from "@/lib/date/trainingDay";
 
 /**
  * みんなの記録の可視化（誰が・いつ・どこで・どれくらい）
- * - 色＝店舗、濃さ・長さ＝トレーニング量（時間。時間の記録が無ければセット数）
+ * - 色＝店舗、濃さ＝その日のセット数（全員が必ず記録している量なので、これで比べる）
+ * - マスをタップすると、その日の詳細（店舗・セット数・時間）を下に出す（スマホでは title が出ないため）
  */
 
 export function useDarkTheme(): boolean {
@@ -33,9 +34,8 @@ export function storeLabel(storeId: string, label: string | undefined, short = t
   return short ? shortNameOf(label) : label;
 }
 
-/** 量（0〜1）：90分または24セットで最大 */
-export function amountOf(totalMin: number | undefined, setCount: number): number {
-  if (totalMin) return Math.min(1, totalMin / 90);
+/** 量（0〜1）：24セットで最大。時間は開始〜保存の自動計算で、後から入力した記録では意味が無いため濃さには使わない */
+export function amountOf(_totalMin: number | undefined, setCount: number): number {
   return Math.min(1, setCount / 24);
 }
 
@@ -51,6 +51,7 @@ function dayTitle(d: ActivityDay): string {
 /** 全員の直近N日を1行ずつ並べた表 */
 export function ActivityGrid({ users, myId, today, days = 14 }: { users: PublicUser[]; myId?: string; today: string; days?: number }) {
   const dark = useDarkTheme();
+  const [picked, setPicked] = useState<{ key: string; text: string } | null>(null);
   const dates = Array.from({ length: days }, (_, i) => shiftYMD(today, i - days + 1));
   const storesSeen = new Map<string, string | undefined>();
   for (const u of users) for (const d of u.days ?? []) if (dates.includes(d.date) && !storesSeen.has(d.storeId)) storesSeen.set(d.storeId, d.storeLabel);
@@ -73,13 +74,17 @@ export function ActivityGrid({ users, myId, today, days = 14 }: { users: PublicU
               </Link>
               {dates.map((date) => {
                 const d = byDate.get(date);
+                const key = `${u.userId}:${date}`;
                 return d ? (
-                  <span
+                  <button
+                    type="button"
                     key={date}
-                    className={`aspect-square rounded-[4px] ${date === today ? "ring-2 ring-accent" : ""}`}
+                    className={`aspect-square rounded-[4px] ${date === today ? "ring-2 ring-accent" : ""} ${picked?.key === key ? "outline outline-2 outline-offset-1 outline-fg" : ""}`}
                     style={{ background: storeColor(d.storeId, dark), opacity: 0.35 + 0.65 * amountOf(d.totalMin, d.setCount) }}
                     title={dayTitle(d)}
                     aria-label={`${u.displayName} ${dayTitle(d)}`}
+                    aria-pressed={picked?.key === key}
+                    onClick={() => setPicked(picked?.key === key ? null : { key, text: `${u.displayName}：${dayTitle(d)}` })}
                     data-testid="activity-cell"
                   />
                 ) : (
@@ -90,8 +95,13 @@ export function ActivityGrid({ users, myId, today, days = 14 }: { users: PublicU
           );
         })}
       </div>
+      {picked && (
+        <p className="mt-2 rounded-lg bg-card-2 px-2 py-1.5 text-xs" data-testid="activity-detail">
+          {picked.text}
+        </p>
+      )}
       <StoreLegend stores={[...storesSeen.entries()]} dark={dark} />
-      <p className="mt-1 text-[11px] text-muted">色＝店舗、濃いほど長い（時間の記録が無い日はセット数）。マスをタップ長押しで詳細。</p>
+      <p className="mt-1 text-[11px] text-muted">色＝店舗、濃いほどセット数が多い。マスをタップすると詳細が出ます。</p>
     </div>
   );
 }
@@ -110,11 +120,11 @@ export function StoreLegend({ stores, dark }: { stores: [string, string | undefi
   );
 }
 
-/** 1回分のトレーニング量を横棒で（長さ＝時間。120分で最大） */
+/** 1回分のトレーニング量を横棒で（長さ＝セット数。30セットで最大。時間は文字で添える） */
 export function SessionBar({ w }: { w: SharedWorkout }) {
   const dark = useDarkTheme();
   const total = w.durations?.totalMin;
-  const ratio = total ? Math.min(1, total / 120) : Math.min(1, w.setCount / 30);
+  const ratio = Math.min(1, w.setCount / 30);
   return (
     <div className="mt-1.5 flex items-center gap-2">
       <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
@@ -130,24 +140,37 @@ export function SessionBar({ w }: { w: SharedWorkout }) {
 /** その人の直近28日のカレンダー */
 export function PersonCalendar({ days, today }: { days: ActivityDay[]; today: string }) {
   const dark = useDarkTheme();
+  const [picked, setPicked] = useState<string | null>(null);
   const byDate = new Map(days.map((d) => [d.date, d]));
   const dates = Array.from({ length: 28 }, (_, i) => shiftYMD(today, i - 27));
   return (
-    <div className="grid grid-cols-7 gap-1" data-testid="person-calendar">
-      {dates.map((date) => {
-        const d = byDate.get(date);
-        return (
-          <div key={date} className="flex flex-col items-center gap-0.5">
-            <div
-              className={`h-7 w-full rounded-md ${d ? "" : "bg-card-2"} ${date === today ? "ring-2 ring-accent" : ""}`}
-              style={d ? { background: storeColor(d.storeId, dark), opacity: 0.35 + 0.65 * amountOf(d.totalMin, d.setCount) } : undefined}
-              title={d ? dayTitle(d) : `${formatJaDate(date)} 休み`}
-              aria-label={d ? dayTitle(d) : `${formatJaDate(date)} 休み`}
-            />
-            <span className="text-[9px] text-muted">{Number(date.slice(8))}</span>
-          </div>
-        );
-      })}
+    <div data-testid="person-calendar">
+      <div className="grid grid-cols-7 gap-1">
+        {dates.map((date) => {
+          const d = byDate.get(date);
+          const label = d ? dayTitle(d) : `${formatJaDate(date)} 休み`;
+          return (
+            <div key={date} className="flex flex-col items-center gap-0.5">
+              <button
+                type="button"
+                className={`h-7 w-full rounded-md ${d ? "" : "bg-card-2"} ${date === today ? "ring-2 ring-accent" : ""} ${picked === date ? "outline outline-2 outline-offset-1 outline-fg" : ""}`}
+                style={d ? { background: storeColor(d.storeId, dark), opacity: 0.35 + 0.65 * amountOf(d.totalMin, d.setCount) } : undefined}
+                title={label}
+                aria-label={label}
+                aria-pressed={picked === date}
+                onClick={() => setPicked(picked === date ? null : date)}
+                data-testid="calendar-cell"
+              />
+              <span className="text-[9px] text-muted">{Number(date.slice(8))}</span>
+            </div>
+          );
+        })}
+      </div>
+      {picked && (
+        <p className="mt-2 rounded-lg bg-card-2 px-2 py-1.5 text-xs" data-testid="calendar-detail">
+          {byDate.get(picked) ? dayTitle(byDate.get(picked)!) : `${formatJaDate(picked)} 休み`}
+        </p>
+      )}
     </div>
   );
 }
