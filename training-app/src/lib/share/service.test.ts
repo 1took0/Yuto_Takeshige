@@ -114,3 +114,76 @@ describe("KV adapters", () => {
     expect((await getFeed(kv2)).users[0]).toMatchObject({ displayName: "Aさん", workoutCount: 1 });
   });
 });
+
+/** Redis に送ったコマンドの数を数える（Upstash の無料枠は月50万コマンド） */
+class CountingKV extends MemoryKV {
+  count = 0;
+  constructor() {
+    super();
+    for (const m of ["get", "set", "del", "hset", "hdel", "hgetall", "hkeys", "sadd", "srem", "smembers"] as const) {
+      const orig = this[m].bind(this) as (...a: unknown[]) => Promise<unknown>;
+      (this as unknown as Record<string, unknown>)[m] = (...a: unknown[]) => {
+        this.count++;
+        return orig(...a);
+      };
+    }
+  }
+}
+
+describe("「みんな」の読み込みのコマンド数", () => {
+  const user = (i: number) => ({ id: `user${String(i).padStart(8, "0")}`, token: String(i % 10).repeat(64) });
+  async function fill(kv: MemoryKV, n: number) {
+    for (let i = 0; i < n; i++) {
+      const u = user(i);
+      await upsertProfile(kv, u.id, u.token, `人${i}`);
+      await putWorkouts(kv, u.id, u.token, ws.slice(0, 5).map((w) => ({ ...toShareable(w), id: `${w.id}-${i}` })));
+    }
+  }
+
+  it("人数が増えても、1回の読み込みは2コマンドで一定", async () => {
+    for (const n of [3, 30]) {
+      const kv = new CountingKV();
+      await fill(kv, n);
+      kv.count = 0;
+      const feed = await getFeed(kv);
+      expect(feed.users).toHaveLength(n);
+      expect(kv.count).toBe(2);
+    }
+  });
+
+  it("要約がまだ無い人（以前から共有している人）は、最初の読み込みで1度だけ作る", async () => {
+    const kv = new CountingKV();
+    await fill(kv, 4);
+    kv.hashes.delete("tc:feed");
+    const first = await getFeed(kv);
+    expect(first.users).toHaveLength(4);
+    kv.count = 0;
+    const second = await getFeed(kv);
+    expect(kv.count).toBe(2);
+    expect(second.users.map((u) => u.workoutCount)).toEqual([5, 5, 5, 5]);
+  });
+
+  it("要約は書き込みのたびに作り直され、共有をやめると消える。トークンのハッシュは入らない", async () => {
+    const kv = new MemoryKV();
+    await upsertProfile(kv, A.id, A.token, "Aさん");
+    await upsertProfile(kv, B.id, B.token, "Bさん");
+    // 40件より多く送っても、件数は全体を数える（要約に持つのは最近の分だけ）
+    const many = Array.from({ length: 45 }, (_, i) => ({ ...toShareable(ws[i % ws.length]), id: `w${i}` }));
+    await putWorkouts(kv, A.id, A.token, many);
+    let feed = await getFeed(kv);
+    expect(feed.users.find((u) => u.userId === A.id)).toMatchObject({ workoutCount: 45 });
+    expect(JSON.stringify(kv.hashes.get("tc:feed")?.get(A.id))).not.toContain("tokenHash");
+    // 表示名の変更・削除・全件同期が反映される
+    await upsertProfile(kv, A.id, A.token, "Aさん2");
+    await deleteWorkouts(kv, A.id, A.token, ["w0"]);
+    await pruneWorkouts(kv, A.id, A.token, ["w1", "w2"]);
+    feed = await getFeed(kv);
+    expect(feed.users.find((u) => u.userId === A.id)).toMatchObject({ displayName: "Aさん2", workoutCount: 2 });
+    // 共有をやめると、要約からも消える
+    await removeUser(kv, A.id, A.token);
+    expect(kv.hashes.get("tc:feed")?.has(A.id)).toBe(false);
+    feed = await getFeed(kv);
+    expect(feed.users.map((u) => u.userId)).toEqual([B.id]);
+    expect(feed.recent.every((r) => r.userId !== A.id)).toBe(true);
+  });
+});

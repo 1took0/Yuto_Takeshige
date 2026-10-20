@@ -8,7 +8,9 @@ import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
  *   tc:users            … 共有中の userId の集合
  *   tc:u:{userId}       … プロフィール JSON（表示名・トークンのハッシュ）
  *   tc:w:{userId}       … ハッシュ（workoutId → 記録 JSON）
- * 共有をやめると、その人の記録とプロフィールはサーバーから完全に削除する。
+ *   tc:feed             … ハッシュ（userId → 「みんな」用の要約 JSON）。記録・表示名を書き込むたびにその人の分を作り直す
+ * 「みんな」はこの要約をまとめて読むだけなので、人数が増えても Redis のコマンド数は一定（Upstash 無料枠のため）。
+ * 共有をやめると、その人の記録・プロフィール・要約はサーバーから完全に削除する。
  */
 export interface StoredProfile {
   userId: string;
@@ -56,8 +58,8 @@ export function recentActivity(ws: SharedWorkout[], today = trainingDateOf(), da
   return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function publicUser(p: StoredProfile, ws: SharedWorkout[]): PublicUser {
-  return { userId: p.userId, displayName: p.displayName, workoutCount: ws.length, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws), days: recentActivity(ws) };
+function publicUser(p: Pick<StoredProfile, "userId" | "displayName" | "updatedAt">, ws: SharedWorkout[], workoutCount = ws.length): PublicUser {
+  return { userId: p.userId, displayName: p.displayName, workoutCount, lastDate: ws[0]?.trainingDate, updatedAt: p.updatedAt, week: weekStats(ws), days: recentActivity(ws) };
 }
 
 export function weekStats(ws: SharedWorkout[], today = trainingDateOf()): NonNullable<PublicUser["week"]> {
@@ -82,6 +84,9 @@ export class ShareError extends Error {
 }
 
 const USERS = "tc:users";
+const FEED = "tc:feed";
+/** 「みんな」の最近のトレーニングに出す件数（要約にも各自この件数まで持つ） */
+export const FEED_RECENT = 40;
 const uKey = (id: string) => `tc:u:${id}`;
 const wKey = (id: string) => `tc:w:${id}`;
 export const MAX_WORKOUTS_PER_USER = 1000;
@@ -121,6 +126,7 @@ export async function upsertProfile(kv: KV, userId: string, token: string, displ
   const p: StoredProfile = cur ? { ...cur, displayName, updatedAt: now } : { userId, displayName, tokenHash: await hashToken(token), createdAt: now, updatedAt: now };
   await kv.set(uKey(userId), JSON.stringify(p));
   await kv.sadd(USERS, userId);
+  await refreshFeedEntry(kv, p);
   return p;
 }
 
@@ -130,6 +136,7 @@ export async function removeUser(kv: KV, userId: string, token: string): Promise
   if (!cur) return;
   await kv.del(wKey(userId), uKey(userId));
   await kv.srem(USERS, userId);
+  await kv.hdel(FEED, userId);
 }
 
 /** 作成者による削除：本人のトークンなしでプロフィールと記録を削除（呼び出し側で作成者確認済みであること） */
@@ -137,6 +144,7 @@ export async function adminRemoveUser(kv: KV, userId: string): Promise<boolean> 
   const cur = await getProfile(kv, userId);
   await kv.del(wKey(userId), uKey(userId));
   await kv.srem(USERS, userId);
+  await kv.hdel(FEED, userId);
   return !!cur;
 }
 
@@ -181,13 +189,58 @@ export async function pruneWorkouts(kv: KV, userId: string, token: string, keepI
   await requireProfile(kv, userId, token);
   const keep = new Set(keepIds);
   const stale = (await kv.hkeys(wKey(userId))).filter((id) => !keep.has(id));
-  if (stale.length) await kv.hdel(wKey(userId), ...stale);
+  if (stale.length) {
+    await kv.hdel(wKey(userId), ...stale);
+    const p = await getProfile(kv, userId);
+    if (p) await refreshFeedEntry(kv, p);
+  }
   return stale.length;
 }
 
+/** 更新日時を新しくし、「みんな」用の要約を作り直す */
 async function touch(kv: KV, userId: string) {
   const p = await getProfile(kv, userId);
-  if (p) await kv.set(uKey(userId), JSON.stringify({ ...p, updatedAt: new Date().toISOString() }));
+  if (!p) return;
+  const next = { ...p, updatedAt: new Date().toISOString() };
+  await kv.set(uKey(userId), JSON.stringify(next));
+  await refreshFeedEntry(kv, next);
+}
+
+/** 「みんな」用の要約（1人分）。表示名と、最近の記録（直近28日分と、新しい順に40件）だけを持つ */
+interface FeedEntry {
+  userId: string;
+  displayName: string;
+  updatedAt: string;
+  workoutCount: number;
+  workouts: SharedWorkout[];
+}
+
+function feedEntryOf(p: StoredProfile, all: SharedWorkout[], today = trainingDateOf()): FeedEntry {
+  // 日ごとの表（28日）・直近7日・最近のトレーニングに要る分だけ。時間が経つと表から外れるだけなので、読むときに今日で数え直せる
+  const workouts = all.filter((w, i) => i < FEED_RECENT || diffDays(today, w.trainingDate) < ACTIVITY_DAYS);
+  return { userId: p.userId, displayName: p.displayName, updatedAt: p.updatedAt, workoutCount: all.length, workouts };
+}
+
+async function refreshFeedEntry(kv: KV, p: StoredProfile): Promise<FeedEntry> {
+  const entry = feedEntryOf(p, parseWorkouts(await kv.hgetall(wKey(p.userId))));
+  await kv.hset(FEED, { [p.userId]: JSON.stringify(entry) });
+  return entry;
+}
+
+function parseFeedEntry(raw: string | undefined): FeedEntry | null {
+  if (!raw) return null;
+  try {
+    const e = JSON.parse(raw) as FeedEntry;
+    if (typeof e?.userId !== "string" || typeof e.displayName !== "string" || !Array.isArray(e.workouts)) return null;
+    const workouts = e.workouts.map((w) => sanitizeWorkout(w)).filter((w): w is SharedWorkout => !!w);
+    return { ...e, workouts: sortWorkouts(workouts) };
+  } catch {
+    return null;
+  }
+}
+
+function sortWorkouts(ws: SharedWorkout[]): SharedWorkout[] {
+  return ws.sort((a, b) => (a.trainingDate < b.trainingDate ? 1 : a.trainingDate > b.trainingDate ? -1 : b.startedAt.localeCompare(a.startedAt)));
 }
 
 function parseWorkouts(h: Record<string, string>): SharedWorkout[] {
@@ -200,21 +253,28 @@ function parseWorkouts(h: Record<string, string>): SharedWorkout[] {
       /* 壊れたデータは無視 */
     }
   }
-  return out.sort((a, b) => (a.trainingDate < b.trainingDate ? 1 : a.trainingDate > b.trainingDate ? -1 : b.startedAt.localeCompare(a.startedAt)));
+  return sortWorkouts(out);
 }
 
-/** 共有中の全員と最近の記録 */
-export async function getFeed(kv: KV, limit = 40): Promise<{ users: PublicUser[]; recent: FeedItem[] }> {
-  const ids = await kv.smembers(USERS);
+/**
+ * 共有中の全員と最近の記録
+ * 要約（tc:feed）と共有中の一覧（tc:users）の2コマンドだけで作る。人数が増えてもコマンド数は変わらない
+ * （要約がまだ無い人＝この仕組みの前から共有している人は、その場で1度だけ作る）
+ */
+export async function getFeed(kv: KV, limit = FEED_RECENT): Promise<{ users: PublicUser[]; recent: FeedItem[] }> {
+  const [ids, feed] = await Promise.all([kv.smembers(USERS), kv.hgetall(FEED)]);
   const users: PublicUser[] = [];
   const recent: FeedItem[] = [];
   await Promise.all(
     ids.map(async (id) => {
-      const p = await getProfile(kv, id);
-      if (!p) return;
-      const ws = parseWorkouts(await kv.hgetall(wKey(id)));
-      users.push(publicUser({ ...p, userId: id }, ws));
-      for (const w of ws.slice(0, limit)) recent.push({ userId: id, displayName: p.displayName, workout: w });
+      let entry = parseFeedEntry(feed[id]);
+      if (!entry) {
+        const p = await getProfile(kv, id);
+        if (!p) return;
+        entry = await refreshFeedEntry(kv, p);
+      }
+      users.push(publicUser(entry, entry.workouts, entry.workoutCount));
+      for (const w of entry.workouts.slice(0, limit)) recent.push({ userId: id, displayName: entry.displayName, workout: w });
     }),
   );
   users.sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? "") || a.displayName.localeCompare(b.displayName));
