@@ -686,3 +686,34 @@ test("店舗の器具：重量の刻みの数字が見え、変更できる", as
     await expect(page.getByLabel("チェストプレスマシンの重量の刻み", { exact: true })).toHaveValue("2.5", { timeout: 2000 });
   }).toPass({ timeout: 20_000 });
 });
+
+test("バイク・トレッドミル：作られた時間・負荷をそのまま使え、カードとタイマー画面で自分で変えられる", async ({ page }) => {
+  await startWorkout(page);
+  const bike = page.getByTestId("cardio-card").filter({ hasText: "エアロバイク" });
+  await expect(bike).toBeVisible();
+  const before = Number((await bike.locator("header").textContent())!.match(/計画 (\d+)分/)![1]);
+
+  // カード：「時間・負荷を変更」で1区間目の負荷を L18 に
+  await bike.getByTestId("cardio-edit").click();
+  const level = bike.getByTestId("segment-row").first().getByRole("textbox", { name: /の負荷$/ });
+  await level.fill("18");
+  await level.blur();
+  await bike.getByTestId("cardio-edit").click();
+  await expect(bike.locator("table")).toContainText("L18");
+
+  // タイマー画面：同じ内容が入っていて、時間を1分延ばしてセットできる
+  await bike.getByRole("link", { name: /タイマーを開始/ }).click();
+  await expect(page).toHaveURL(/\/timer\/bike/);
+  const editor = page.getByTestId("cardio-timer-editor");
+  await expect(editor.getByTestId("segment-row").first().getByRole("textbox", { name: /の負荷$/ })).toHaveValue("18");
+  const time = editor.getByTestId("segment-row").first().getByRole("textbox", { name: /の時間$/ });
+  const mins = Number(await time.inputValue());
+  await time.fill(String(mins + 1));
+  await time.blur();
+  await page.getByTestId("cardio-timer-set").click();
+  await expect(page.getByTestId("cardio-timer-set")).toBeDisabled();
+
+  // メニューの計画にも反映される
+  await page.goto("/workout");
+  await expect(page.getByTestId("cardio-card").filter({ hasText: "エアロバイク" }).locator("header")).toContainText(`計画 ${before + 1}分`);
+});

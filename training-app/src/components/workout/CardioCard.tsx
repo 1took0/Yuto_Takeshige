@@ -8,6 +8,7 @@ import { planDistanceKm, planRunMin, planTotalMin } from "@/lib/planner/cardio";
 import { removeCardio } from "@/lib/workout/edit";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { GripIcon, TrashIcon } from "@/components/ui/Icons";
+import { SegmentEditor } from "@/components/timer/SegmentEditor";
 
 interface Props {
   entry: CardioEntry;
@@ -61,6 +62,8 @@ export function SegmentTable({ plan }: { plan: CardioSegment[] }) {
 export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }: Props) {
   const [open, setOpen] = useState(!c.completed);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // 計画の時間・負荷を自分で変える
+  const [editing, setEditing] = useState(false);
   const total = planTotalMin(c.plan);
   const run = planRunMin(c.plan);
   const dist = planDistanceKm(c.plan);
@@ -91,7 +94,12 @@ export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }
       {open && (
         <div className="space-y-3 border-t border-border px-3 pb-3 pt-2">
           {c.rationale && <p className="text-xs text-muted">{c.rationale}</p>}
-          {c.plan.length > 0 && <SegmentTable plan={c.plan} />}
+          {c.plan.length > 0 && (editing ? <SegmentEditor segments={c.plan} onChange={(plan) => patch({ plan })} /> : <SegmentTable plan={c.plan} />)}
+          {c.plan.length > 0 && !c.completed && (
+            <button type="button" className="btn-ghost w-full py-1.5 text-sm text-accent" onClick={() => setEditing((v) => !v)} data-testid="cardio-edit">
+              {editing ? "変更を終える" : "時間・負荷を変更"}
+            </button>
+          )}
           {timerLink && c.plan.length > 0 && !c.completed && (
             <Link href={`/timer/${c.machine}?entry=${c.id}`} className="btn-primary w-full">
               ⏱ タイマーを開始（{formatDuration(total * 60)}）

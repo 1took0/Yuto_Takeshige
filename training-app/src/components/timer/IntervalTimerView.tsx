@@ -15,7 +15,11 @@ import { bikeWarmup, buildTreadmillPlan, planRunMin, planTotalMin } from "@/lib/
 import { NumberField } from "@/components/ui/NumberField";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { deleteTimerHistory, getTimerHistory, recordTimerUse } from "@/lib/db/repo";
+import { SegmentEditor } from "./SegmentEditor";
 import { TIMER_TYPE_LABEL, autoTitle, buildCountdown, buildInterval, historySegments, parseInterval, type IntervalConfig, type TimerHistoryEntry, type TimerType } from "@/lib/timer/presets";
+
+/** 区間の時間・負荷の並び（計画とタイマーの食い違いの判定に使う） */
+const segSig = (segs: { id: string; durationSec: number; speedKmh?: number; inclinePct?: number; level?: number }[]) => segs.map((s) => [s.id, s.durationSec, s.speedKmh, s.inclinePct, s.level].join(":")).join("|");
 
 function toTimerSegments(plan: CardioSegment[]): TimerSegment[] {
   return plan.map((s) => ({ id: s.id, label: s.label ?? s.kind, kind: s.kind, durationSec: s.durationSec, speedKmh: s.speedKmh, speedMaxKmh: s.speedMaxKmh, inclinePct: s.inclinePct, level: s.level }));
@@ -60,10 +64,18 @@ export function IntervalTimerView({ machine, entryId }: { machine: TimerType; en
   useEffect(() => {
     if (!entry || !entry.plan.length) return;
     if (t.state.status !== "idle") return;
-    const same = t.state.segments.length === entry.plan.length && t.state.segments.every((s, i) => s.id === entry.plan[i].id && s.durationSec === entry.plan[i].durationSec);
-    if (!same) t.replace(createTimer(timerId, machine === "bike" ? "エアロバイク" : "トレッドミル", toTimerSegments(entry.plan)));
+    if (segSig(t.state.segments) !== segSig(entry.plan)) t.replace(createTimer(timerId, machine === "bike" ? "エアロバイク" : "トレッドミル", toTimerSegments(entry.plan)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry?.id, entry?.plan.length]);
+  }, [entry?.id, entry ? segSig(entry.plan) : ""]);
+
+  // バイク・トレッドミルの時間・負荷の編集欄。セットされている区間を初期値にし、区間が替わったら作り直す
+  const [segDraft, setSegDraft] = useState<TimerSegment[]>(t.state.segments);
+  const [draftSig, setDraftSig] = useState(segSig(t.state.segments));
+  if (draftSig !== segSig(t.state.segments)) {
+    setDraftSig(segSig(t.state.segments));
+    setSegDraft(t.state.segments);
+  }
+  const draftChanged = segSig(segDraft) !== segSig(t.state.segments);
 
   // Wake Lock（画面消灯防止）
   useEffect(() => {
@@ -324,6 +336,34 @@ export function IntervalTimerView({ machine, entryId }: { machine: TimerType; en
             ))}
           </div>
           <NameAndSet name={name} setName={setName} summary={`合計 ${formatDuration(countTotal)}`} disabled={countTotal <= 0} onSet={() => requestLoad("countdown", buildCountdown(countTotal), name || autoTitle("countdown", buildCountdown(countTotal)))} />
+        </section>
+      )}
+
+      {(machine === "bike" || machine === "treadmill") && segDraft.length > 0 && (
+        <section className="card space-y-3 p-3" data-testid="cardio-timer-editor">
+          <div className="text-xs font-semibold text-muted">時間・負荷を変更（そのままでも使えます。変えたらセットしてからスタート）</div>
+          <SegmentEditor segments={segDraft} onChange={setSegDraft} />
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-xs text-muted">合計 {formatDuration(segDraft.reduce((a, s) => a + s.durationSec, 0))}</span>
+            {draftChanged && (
+              <button type="button" className="btn-ghost px-3 py-2 text-sm" onClick={() => setSegDraft(t.state.segments)}>
+                元に戻す
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-primary px-4 py-2 text-sm"
+              disabled={!draftChanged}
+              data-testid="cardio-timer-set"
+              onClick={() => {
+                // メニューの有酸素と紐づくときは、メニューの計画も同じ内容に変える
+                if (entry) mutate((w) => ({ ...w, cardio: w.cardio.map((c) => (c.id === entry.id ? { ...c, plan: segDraft.map((x) => ({ ...x, kind: x.kind as CardioSegment["kind"] })) } : c)) }));
+                requestLoad(machine, segDraft, t.state.title);
+              }}
+            >
+              この内容でセット
+            </button>
+          </div>
         </section>
       )}
 
