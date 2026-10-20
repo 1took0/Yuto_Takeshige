@@ -10,6 +10,7 @@ import { useStores } from "@/hooks/useSettings";
 import { formatJaDate } from "@/lib/date/trainingDay";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { CardioCard } from "@/components/workout/CardioCard";
+import { BikeIcon, RunIcon, TimerIcon } from "@/components/ui/Icons";
 import { AddExerciseSheet } from "@/components/workout/AddExerciseSheet";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { addExercise, moveItemTo, orderedItems } from "@/lib/workout/edit";
@@ -177,14 +178,16 @@ export function ReadOnlyView({ w }: { w: Workout }) {
   return (
     <div className="space-y-2">
       {dur && (
-        <p className="rounded-xl bg-accent-soft px-3 py-2 text-sm" data-testid="durations">
-          ⏱ {dur}
+        <p className="flex items-center gap-1.5 rounded-xl bg-accent-soft px-3 py-2 text-sm" data-testid="durations">
+          <TimerIcon className="h-4 w-4 shrink-0" />
+          {dur}
         </p>
       )}
       {w.cardio.map((c) => (
         <div key={c.id} className="card p-3 text-sm">
-          <div className="font-semibold">
-            {c.machine === "bike" ? "🚴 エアロバイク" : "🏃 トレッドミル"} {c.skipped && <span className="text-xs text-muted">（実施せず）</span>}
+          <div className="flex items-center gap-1.5 font-semibold">
+            {c.machine === "bike" ? <BikeIcon className="h-4 w-4" /> : <RunIcon className="h-4 w-4" />}
+            {c.machine === "bike" ? "エアロバイク" : "トレッドミル"} {c.skipped && <span className="text-xs text-muted">（実施せず）</span>}
           </div>
           <div className="text-muted">
             {c.actual?.totalMin !== undefined && `${c.actual.totalMin}分`}

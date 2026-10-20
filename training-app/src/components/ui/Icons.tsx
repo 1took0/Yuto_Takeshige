@@ -74,3 +74,34 @@ export function CloseIcon({ className = "h-5 w-5" }: { className?: string }) {
     </svg>
   );
 }
+
+/** ストップウォッチ（タイマーの印。絵文字は使わない） */
+export function TimerIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2M9 2h6M12 2v3" />
+    </svg>
+  );
+}
+
+/** エアロバイク */
+export function BikeIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="5.5" cy="17.5" r="3.5" />
+      <circle cx="18.5" cy="17.5" r="3.5" />
+      <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 17.5V14l-3-3 4-3 2 3h3" />
+    </svg>
+  );
+}
+
+/** トレッドミル（走る人） */
+export function RunIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="14" cy="4" r="1.5" />
+      <path d="M9 21l2.5-6-3-2 3.5-4 3 2.5 3-1M6 12l3-3 3 1M12 15l3 2 2 4" />
+    </svg>
+  );
+}

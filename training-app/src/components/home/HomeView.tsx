@@ -8,6 +8,7 @@ import { diffDays, formatJaDate, trainingDateOf } from "@/lib/date/trainingDay";
 import { progressOf } from "@/lib/workout/edit";
 import { TrainingAdjust } from "@/components/adjust/TrainingAdjust";
 import { countedSets } from "@/lib/planner/history";
+import { TimerIcon } from "@/components/ui/Icons";
 
 export function HomeView() {
   const { workout: active } = useActiveWorkout();
@@ -80,7 +81,10 @@ export function HomeView() {
       )}
 
       <Link href="/timer/interval" className="btn-secondary w-full">
-        ⏱ タイマー
+        <span className="inline-flex items-center gap-1.5">
+          <TimerIcon className="h-5 w-5" />
+          タイマー
+        </span>
       </Link>
     </div>
   );
