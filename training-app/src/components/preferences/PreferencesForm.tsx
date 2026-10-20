@@ -36,6 +36,11 @@ interface FormState {
  * - first: はじめてのヒアリング（スキップ可）
  * - edit: 設定画面からの見直し
  */
+/** 体格の初期値（男性65kg・女性55kg・20歳）。答えないときは体重を空のまま */
+const DEFAULT_WEIGHT: Partial<Record<NonNullable<MenuPreferences["sex"]>, number>> = { male: 65, female: 55 };
+const DEFAULT_AGE = 20;
+const defaultWeightOf = (sex: MenuPreferences["sex"]) => (sex ? DEFAULT_WEIGHT[sex] : undefined);
+
 export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "edit"; onDone: () => void; onCancel?: () => void }) {
   const allEx = useExercises();
   const [form, setForm] = useState<FormState | null>(null);
@@ -72,8 +77,8 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
         chronicPain: p.chronicPain ?? "",
         wish: "",
         sex: p.sex ?? "unspecified",
-        bodyWeightKg: p.bodyWeightKg,
-        age: p.age,
+        bodyWeightKg: p.bodyWeightKg ?? defaultWeightOf(p.sex),
+        age: p.age ?? DEFAULT_AGE,
         past: p.pastExercises ?? [],
       });
     });
@@ -179,7 +184,10 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
               { value: "unspecified" as const, label: "答えない" },
             ]}
             value={form.sex}
-            onChange={set("sex")}
+            onChange={(sex) =>
+              // 体重が未入力か、前の性別の初期値のままなら、選んだ性別の初期値に合わせる
+              setForm((f) => (f ? { ...f, sex, bodyWeightKg: f.bodyWeightKg === undefined || f.bodyWeightKg === defaultWeightOf(f.sex) ? defaultWeightOf(sex) ?? f.bodyWeightKg : f.bodyWeightKg } : f))
+            }
             columns={3}
           />
           <div className="flex flex-wrap gap-2">

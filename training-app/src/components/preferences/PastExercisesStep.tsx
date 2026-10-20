@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
 import type { PastExercise } from "@/lib/types";
-import {
-  EXERCISES,
-  customExercises,
-  getExercise,
-} from "@/lib/catalog/exercises";
+import { deletedBuiltinExercises, getExercise } from "@/lib/catalog/exercises";
+import { useExercises, useSettings } from "@/hooks/useSettings";
+import { restoreExercise } from "@/lib/db/repo";
+import { Sheet } from "@/components/ui/Sheet";
+import { CustomExerciseForm } from "@/components/settings/CustomExerciseForm";
 import { musclesLabel } from "@/lib/catalog/muscles";
 import { NumberField } from "@/components/ui/NumberField";
 import { CloseIcon } from "@/components/ui/Icons";
@@ -13,7 +13,7 @@ import { CloseIcon } from "@/components/ui/Icons";
 /**
  * ヒアリングの2ページ目：これまでに行っていたトレーニング種目
  * 種目を選び、分かれば重量・回数を入れる。メニュー作成で選びやすくし、初めての重量の参考にする
- * 種目一覧に入っていない標準の種目（デッドリフトなど）も選べる（保存すると一覧に加わる）
+ * 選べるのは種目一覧の種目すべて。一覧に無い種目は「＋ 種目を追加」から標準の種目を戻すか、新しく作って選ぶ
  */
 export function PastExercisesStep({
   value,
@@ -23,7 +23,22 @@ export function PastExercisesStep({
   onChange: (v: PastExercise[]) => void;
 }) {
   const [q, setQ] = useState("");
-  const all = [...EXERCISES, ...customExercises()];
+  const [adding, setAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
+  // 設定（削除・追加した種目）が変わったら描き直す
+  useSettings();
+  const list = useExercises();
+  const all = [
+    ...list.filter((e) => e.custom),
+    ...list.filter((e) => !e.custom),
+  ];
+  const hidden = deletedBuiltinExercises();
+  const choose = (id: string) =>
+    onChange(
+      value.some((x) => x.exerciseId === id)
+        ? value
+        : [...value, { exerciseId: id }],
+    );
   const chosen = new Set(value.map((p) => p.exerciseId));
   const options = all.filter(
     (e) =>
@@ -107,7 +122,15 @@ export function PastExercisesStep({
       )}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted">種目を選ぶ</h2>
+        <h2 className="text-sm font-semibold text-muted">種目一覧から選ぶ</h2>
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          onClick={() => setAdding(true)}
+          data-testid="past-ex-add"
+        >
+          ＋ 種目を追加
+        </button>
         <input
           className="input"
           placeholder="種目名・部位で検索（例：ベンチ、脚）"
@@ -116,7 +139,10 @@ export function PastExercisesStep({
           aria-label="これまでの種目を検索"
           data-testid="prefs-past-search"
         />
-        <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border">
+        <ul
+          className="divide-y divide-border rounded-xl border border-border"
+          data-testid="past-ex-options"
+        >
           {options.map((e) => (
             <li key={e.id}>
               <button
@@ -143,11 +169,60 @@ export function PastExercisesStep({
             </li>
           )}
         </ul>
-        <p className="text-[11px] text-muted">
-          一覧に無い種目は、トレーニング中の「＋
-          種目を追加」→「一覧に無い種目を作る」で追加できます。
-        </p>
       </section>
+
+      {/* 種目一覧に無い種目：標準の種目を一覧に戻すか、新しく作る。どちらも選んだ種目に入る */}
+      <Sheet open={adding} onClose={() => setAdding(false)} title="種目を追加">
+        <button
+          type="button"
+          className="btn-secondary mb-3 w-full"
+          onClick={() => setCreating(true)}
+          data-testid="past-ex-create"
+        >
+          ＋ 新しい種目を作る
+        </button>
+        {hidden.length > 0 && (
+          <h3 className="mb-1 text-xs font-semibold text-muted">
+            一覧に入っていない標準の種目（{hidden.length}件）
+          </h3>
+        )}
+        <ul className="divide-y divide-border">
+          {hidden.map((e) => (
+            <li key={e.id}>
+              <button
+                type="button"
+                className="tap flex w-full items-center gap-2 py-2 text-left"
+                onClick={async () => {
+                  await restoreExercise(e.id);
+                  choose(e.id);
+                  setAdding(false);
+                }}
+                data-testid="past-ex-hidden"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {e.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted">
+                    {musclesLabel(e.primary)}
+                  </span>
+                </span>
+                <span className="text-accent">＋</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <CustomExerciseForm
+          open={creating}
+          onClose={() => setCreating(false)}
+          onSaved={(def) => {
+            if (def) {
+              choose(def.id);
+              setAdding(false);
+            }
+          }}
+        />
+      </Sheet>
     </div>
   );
 }

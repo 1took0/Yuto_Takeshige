@@ -37,8 +37,27 @@ test("ヒアリングは2ページ目（これまでの種目）だけスキッ�
   await page.getByTestId("welcome-submit").click();
   await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
   await page.getByRole("radio", { name: "2年以上" }).click();
+  // 体格の初期値：年齢20歳、体重は男性65kg・女性55kg（自分で変えた体重は性別を変えても残す）
+  const weight = page.getByRole("textbox", { name: "体重", exact: true });
+  await expect(page.getByRole("textbox", { name: "年齢", exact: true })).toHaveValue("20");
+  await expect(weight).toHaveValue("");
+  await page.getByRole("radio", { name: "男性" }).click();
+  await expect(weight).toHaveValue("65");
+  await page.getByRole("radio", { name: "女性" }).click();
+  await expect(weight).toHaveValue("55");
+  await weight.fill("58");
+  await page.getByRole("radio", { name: "男性" }).click();
+  await expect(weight).toHaveValue("58");
   await page.getByTestId("prefs-next").click();
   await expect(page.getByTestId("prefs-page2")).toBeVisible();
+  // 種目一覧の種目がすべて並び、上の「＋ 種目を追加」で一覧に無い標準の種目も選べる
+  await expect(page.getByTestId("past-ex-option").filter({ hasText: "レッグプレス" }).first()).toBeVisible();
+  await expect(page.getByTestId("past-ex-option").filter({ hasText: "バーベルスクワット" })).toHaveCount(0);
+  await page.getByTestId("past-ex-add").click();
+  await page.getByTestId("past-ex-hidden").filter({ hasText: "バーベルスクワット" }).click();
+  await expect(page.getByTestId("past-ex-chosen").filter({ hasText: "バーベルスクワット" })).toBeVisible();
+  await page.getByRole("button", { name: "バーベルスクワットを外す" }).click();
+  await expect(page.getByTestId("past-ex-option").filter({ hasText: "バーベルスクワット" })).toHaveCount(1);
   // 戻って答えを確かめられる
   await page.getByTestId("prefs-back").click();
   await expect(page.getByRole("radio", { name: "2年以上" })).toHaveAttribute("aria-checked", "true");
@@ -48,6 +67,7 @@ test("ヒアリングは2ページ目（これまでの種目）だけスキッ�
   // 1ページ目の答えは保存されている
   await page.goto("/settings#preferences");
   await expect(page.getByTestId("prefs-summary")).toContainText("経験：2年以上");
+  await expect(page.getByTestId("prefs-summary")).toContainText("58kg");
   await page.context().close();
 });
 
