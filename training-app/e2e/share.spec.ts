@@ -206,3 +206,29 @@ test("作成者だけが不要なアカウントを削除できる（自分は�
   await old.context().close();
   await owner.context().close();
 });
+
+test("自分の記録にバイク・トレッドミルが無い人には、メニューに有酸素を無理に入れない", async ({ browser }) => {
+  const page = await newUser(browser);
+  await onboard(page, "シロウ", {});
+  // 有酸素なしのメニューを2回、自分で入力して記録する
+  for (let i = 0; i < 2; i++) {
+    await page.goto("/");
+    await page.getByTestId("manual-start").click();
+    await page.getByTestId("manual-create").click();
+    await page.getByTestId("add-exercise").click();
+    await page.getByLabel("種目検索").fill("チェストプレス");
+    await page.getByRole("button", { name: /^チェストプレス/ }).first().click();
+    await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();
+    await page.getByRole("button", { name: "休憩タイマーを閉じる" }).click();
+    await page.getByTestId("finish").click();
+    await page.getByTestId("finish-confirm").click();
+    await expect(page).toHaveURL(/\/history\//);
+  }
+  // 次のメニュー作成：有酸素は「なし」が初期値で、バイクのウォームアップも入らない
+  await page.goto("/start");
+  await expect(page.getByRole("radiogroup", { name: "有酸素" }).getByRole("radio", { name: "なし" })).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("generate").click();
+  await expect(page.getByTestId("exercise-card").first()).toBeVisible();
+  await expect(page.getByTestId("cardio-card")).toHaveCount(0);
+  await page.context().close();
+});

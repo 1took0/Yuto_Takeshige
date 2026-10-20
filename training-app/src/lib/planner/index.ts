@@ -8,7 +8,7 @@ import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
 import { detectComeback, type Comeback } from "./comeback";
-import { manualHabits } from "./habits";
+import { manualHabits, cardioHabits, skipsCardio } from "./habits";
 import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
 import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
@@ -203,6 +203,13 @@ export function generatePlan(input: PlanInput): PlanResult {
   const tm = noCardio ? { mode: "walk" as const } : decideTreadmillMode(intake);
   const budget = computeBudget(intake, tm.mode, wantsCardio(goals));
   if (tm.reason) warnings.push(tm.reason);
+  // これまでの記録でバイクを一度も行っていない人には、ウォームアップのバイクを入れない（その分は筋トレに回す）
+  const cardioUse = cardioHabits(history, today);
+  const noBike = skipsCardio(cardioUse, "bike");
+  if (noBike && budget.warmupMin > 0) {
+    budget.strengthMin += budget.warmupMin;
+    budget.warmupMin = 0;
+  }
 
   // ---- 候補種目のスコアリング ----
   const candidates: Candidate[] = [];
@@ -386,7 +393,8 @@ export function generatePlan(input: PlanInput): PlanResult {
   }
 
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
-  summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）＋バイク${budget.warmupMin}分`);
+  summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）${budget.warmupMin ? `＋バイク${budget.warmupMin}分` : ""}`);
+  if (noBike) summary.push("これまでの記録にバイクが無いため、ウォームアップのバイクは入れていません");
   if (comeback) summary.push(comeback.label);
   if (habits.count > 0) summary.push(`自分で組んだメニュー（直近${habits.count}回）の種目・順番を参考にしました`);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);

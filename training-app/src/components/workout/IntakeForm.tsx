@@ -9,6 +9,8 @@ import { useStores } from "@/hooks/useSettings";
 import Link from "next/link";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 import { generatePlan } from "@/lib/planner";
+import { cardioHabits, skipsCardio } from "@/lib/planner/habits";
+import { trainingDateOf } from "@/lib/date/trainingDay";
 import { getSettings, listCompletedWorkouts, listStoreEquipment, rememberIntakeDefaults, saveWish } from "@/lib/db/repo";
 import { ConfirmDialog } from "@/components/ui/Sheet";
 import { TIME_OPTIONS } from "@/lib/preferences";
@@ -41,8 +43,10 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
   // 前回の店舗・時間・有酸素を初期値に（変更可能）
   useEffect(() => {
     let cancelled = false;
-    getSettings().then((s) => {
+    Promise.all([getSettings(), listCompletedWorkouts()]).then(([s, history]) => {
       if (cancelled) return;
+      // これまでの記録でトレッドミルを一度も行っていない人は「有酸素なし」から（選び直せば入れられる）
+      const noTreadmill = skipsCardio(cardioHabits(history, trainingDateOf()), "treadmill");
       setForm({
         storeId: s.lastStoreId && (s.customStores ?? []).concat(STORES).some((x) => x.id === s.lastStoreId) ? s.lastStoreId : "ichijoji",
         timeLimit: s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
@@ -53,7 +57,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         pain: false,
         painDesc: "",
         focus: "auto",
-        cardio: s.lastCardio ?? s.preferences?.cardio ?? "run",
+        cardio: noTreadmill ? "none" : (s.lastCardio ?? s.preferences?.cardio ?? "run"),
         memo: presetMemo ?? "",
       });
     });

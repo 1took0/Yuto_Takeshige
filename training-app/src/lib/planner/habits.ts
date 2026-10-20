@@ -1,4 +1,4 @@
-import type { Workout } from "@/lib/types";
+import type { CardioMachine, Workout } from "@/lib/types";
 import { diffDays } from "@/lib/date/trainingDay";
 import { countedSets, sortByDateDesc } from "./history";
 
@@ -46,4 +46,28 @@ export function manualHabits(history: Workout[], today: string, opts: { maxSessi
     position.set(id, (posSum.get(id) ?? 0) / n);
   }
   return { count: used, freq, position };
+}
+
+export interface CardioHabits {
+  /** 見た回数（直近8週間・最大6回のトレーニング） */
+  sessions: number;
+  bike: number;
+  treadmill: number;
+}
+
+/**
+ * 日々の記録（自分で入力したメニュー・自動作成のメニューとも）で、バイク・トレッドミルを実際に行ったか
+ * 完了にした、または実績を入れたものだけ数える（自動作成で入ったまま手を付けなかったものは数えない）
+ */
+export function cardioHabits(history: Workout[], today: string, opts: { maxSessions?: number; withinDays?: number } = {}): CardioHabits {
+  const sessions = sortByDateDesc(history)
+    .filter((w) => diffDays(today, w.trainingDate) < (opts.withinDays ?? 56))
+    .slice(0, opts.maxSessions ?? 6);
+  const did = (w: Workout, machine: CardioMachine) => w.cardio.some((c) => c.machine === machine && !c.skipped && (c.completed || (c.actual?.totalMin ?? 0) > 0));
+  return { sessions: sessions.length, bike: sessions.filter((w) => did(w, "bike")).length, treadmill: sessions.filter((w) => did(w, "treadmill")).length };
+}
+
+/** 記録が2回以上あって一度も行っていない有酸素は、メニューに無理に入れない */
+export function skipsCardio(h: CardioHabits, machine: CardioMachine): boolean {
+  return h.sessions >= 2 && h[machine] === 0;
 }
