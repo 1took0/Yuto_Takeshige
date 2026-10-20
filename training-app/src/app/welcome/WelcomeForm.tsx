@@ -1,11 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { Goals } from "@/lib/types";
-import { DEFAULT_GOALS } from "@/lib/goals";
 import { getSettings, updateSettings } from "@/lib/db/repo";
 import { createProfile, enableSharing, shareApi } from "@/lib/share/client";
-import { GoalsEditor } from "@/components/settings/GoalsEditor";
 import { useToast } from "@/components/ui/Toast";
 
 /** 初回設定：名前・既存履歴の取り込み・目標・共有 */
@@ -13,7 +10,6 @@ export function WelcomeForm() {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState("");
-  const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [share, setShare] = useState(false);
   const [shareAvailable, setShareAvailable] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,7 +18,6 @@ export function WelcomeForm() {
     void (async () => {
       const s = await getSettings();
       if (s.profile?.displayName) setName(s.profile.displayName);
-      if (s.goals) setGoals(s.goals);
     })();
     shareApi
       .status()
@@ -36,7 +31,7 @@ export function WelcomeForm() {
     try {
       const s = await getSettings();
       const profile = s.profile ? { ...s.profile, displayName: name.trim() } : createProfile(name);
-      await updateSettings({ profile, goals, onboarded: true });
+      await updateSettings({ profile, onboarded: true });
       if (share) {
         try {
           await enableSharing();
@@ -55,7 +50,7 @@ export function WelcomeForm() {
     <div className="space-y-5 pb-28 pt-2">
       <header>
         <h1 className="text-2xl font-bold">はじめに</h1>
-        <p className="text-sm text-muted">あなたに合わせたメニューを作るための設定です。あとから設定画面で変更できます。</p>
+        <p className="text-sm text-muted">表示名と記録の共有だけ決めます。メニューの希望（目標・経験・時間など）は次のヒアリングで聞きます。どれもあとから設定画面で変更できます。</p>
       </header>
 
       <section className="card space-y-2 p-3">
@@ -64,11 +59,6 @@ export function WelcomeForm() {
         <p className="text-[11px] text-muted">記録を共有したときに、他の利用者に表示される名前です。</p>
       </section>
 
-
-      <section className="card p-3">
-        <h2 className="mb-2 font-semibold">目標</h2>
-        <GoalsEditor value={goals} onChange={setGoals} />
-      </section>
 
       <section className="card space-y-2 p-3">
         <h2 className="font-semibold">記録の共有</h2>

@@ -52,3 +52,20 @@ describe("記録に無いバイク・トレッドミルは無理に入れない"
     expect(none.workout.cardio).toHaveLength(0);
   });
 });
+
+describe("セット数は本人の記録に合わせる", () => {
+  it("直近3回の中央値を使い、記録が無ければ標準値", async () => {
+    const { learnedSets } = await import("./history");
+    const mk = (date: string, n: number) => {
+      let w = newManualWorkout("ichijoji", "LifeFit 一乗寺店", new Date(`${date}T19:00:00+09:00`));
+      w = addExercise(w, "chest_press", { sets: n, weight: 40 });
+      for (const s of w.exercises[0].sets) w = toggleSetCompleted(w, w.exercises[0].id, s.id);
+      return finalizeWorkout(w, `${date}T20:00:00+09:00`);
+    };
+    const history = [mk("2026-10-10", 4), mk("2026-10-13", 4), mk("2026-10-16", 2)];
+    expect(learnedSets(history, "chest_press")).toBe(4);
+    expect(learnedSets(history, "leg_press")).toBeUndefined();
+    const { workout } = generatePlan({ intake: { ...intake, timeLimitMin: null }, history, storeEquipment: equipment, settings: { excludedExerciseIds: [] }, now });
+    expect(workout.exercises.find((e) => e.exerciseId === "chest_press")!.sets).toHaveLength(4);
+  });
+});

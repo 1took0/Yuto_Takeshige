@@ -23,6 +23,45 @@ export interface TrainingHabits {
   groupPosition: Map<string, number>;
   /** バイク・トレッドミルの平均の位置と、行った回数 */
   cardioPosition: Map<CardioMachine, { pos: number; n: number }>;
+  /** バイク・トレッドミルをどこで行うか（両方行った日の多数決：筋トレの前／途中／後） */
+  cardioPlace: Map<CardioMachine, "first" | "middle" | "last">;
+  /** 種目の前後関係：before.get(a).get(b) = a と b を両方行った日のうち a が先だった回数 */
+  before: Map<string, Map<string, number>>;
+  /** both.get(a).get(b) = a と b を両方行った日の数 */
+  both: Map<string, Map<string, number>>;
+}
+
+/**
+ * a を b より前に置くべきか（両方行った日の多数決）。どちらとも言えないときは 0
+ * 1回だけ順番が違った日に引きずられないよう、平均の位置ではなく「どちらが先だった回数」で決める
+ */
+export function precedes(h: TrainingHabits, a: string, b: string): -1 | 0 | 1 {
+  const n = h.both.get(a)?.get(b) ?? 0;
+  if (n === 0) return 0;
+  const ab = h.before.get(a)?.get(b) ?? 0;
+  if (ab * 2 > n) return 1;
+  if (ab * 2 < n) return -1;
+  return 0;
+}
+
+/**
+ * 候補を本人の習慣の順に並べる
+ * まず fallback（平均の位置や標準の順）で並べ、隣り合う2つの前後関係が記録の多数決と逆なら入れ替える
+ * （前後関係が分からない組は fallback のまま）
+ */
+export function sortByHabits<T>(items: T[], h: TrainingHabits, idOf: (x: T) => string, fallback: (x: T) => number): T[] {
+  const out = [...items].sort((a, b) => fallback(a) - fallback(b));
+  for (let pass = 0; pass < out.length; pass++) {
+    let swapped = false;
+    for (let i = 0; i + 1 < out.length; i++) {
+      if (precedes(h, idOf(out[i + 1]), idOf(out[i])) === 1) {
+        [out[i], out[i + 1]] = [out[i + 1], out[i]];
+        swapped = true;
+      }
+    }
+    if (!swapped) break;
+  }
+  return out;
 }
 /** 以前の名前（自分で入力したメニューだけから読み取っていたころ） */
 export type ManualHabits = TrainingHabits;
@@ -70,11 +109,36 @@ export function trainingHabits(history: Workout[], today: string, opts: { maxSes
     sum.set(key, (sum.get(key) ?? 0) + pos);
     n.set(key, (n.get(key) ?? 0) + 1);
   };
+  const before = new Map<string, Map<string, number>>();
+  const both = new Map<string, Map<string, number>>();
+  const bump = (m: Map<string, Map<string, number>>, a: string, b: string) => {
+    const row = m.get(a) ?? new Map<string, number>();
+    row.set(b, (row.get(b) ?? 0) + 1);
+    m.set(a, row);
+  };
+  const place = new Map<CardioMachine, { first: number; middle: number; last: number }>();
   let used = 0;
   for (const w of sessions) {
     const done = doneOrder(w);
     if (!done.some((d) => d.kind === "exercise")) continue;
     used++;
+    // 種目どうしの前後関係（同じ日に同じ種目が2回あれば最初の位置）
+    const firstIdx = new Map<string, number>();
+    done.forEach((d, i) => d.kind === "exercise" && !firstIdx.has(d.exerciseId) && firstIdx.set(d.exerciseId, i));
+    const ids = [...firstIdx.keys()];
+    for (const a of ids) for (const b of ids) {
+      if (a === b) continue;
+      bump(both, a, b);
+      if (firstIdx.get(a)! < firstIdx.get(b)!) bump(before, a, b);
+    }
+    // 有酸素の位置：筋トレの前（最初の種目より前）／後（最後の種目より後）／途中
+    const exIdx = done.map((d, i) => (d.kind === "exercise" ? i : -1)).filter((i) => i >= 0);
+    done.forEach((d, i) => {
+      if (d.kind !== "cardio") return;
+      const p = place.get(d.machine) ?? { first: 0, middle: 0, last: 0 };
+      p[i < exIdx[0] ? "first" : i > exIdx[exIdx.length - 1] ? "last" : "middle"]++;
+      place.set(d.machine, p);
+    });
     const seen = new Set<string>();
     done.forEach((d, i) => {
       const pos = done.length === 1 ? 0.5 : i / (done.length - 1);
@@ -98,7 +162,9 @@ export function trainingHabits(history: Workout[], today: string, opts: { maxSes
     else if (kind === "group") groupPosition.set(id, avg);
     else cardioPosition.set(id as CardioMachine, { pos: avg, n: n.get(key)! });
   }
-  return { count: used, freq, position, groupPosition, cardioPosition };
+  const cardioPlace = new Map<CardioMachine, "first" | "middle" | "last">();
+  for (const [m, p] of place) cardioPlace.set(m, p.first >= p.last && p.first >= p.middle ? "first" : p.last >= p.middle ? "last" : "middle");
+  return { count: used, freq, position, groupPosition, cardioPosition, cardioPlace, before, both };
 }
 
 /** 自分で入力したメニューだけから読み取る（以前の動き） */

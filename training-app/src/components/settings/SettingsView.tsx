@@ -281,6 +281,7 @@ function PreferencesSummary({ goals, prefs }: { goals: Goals; prefs: MenuPrefere
   if (prefs.intensity) rows.push(["きつさ", INTENSITY_LABEL[prefs.intensity]]);
   if (prefs.equipmentStyle || goals.preferDumbbell) rows.push(["器具", EQUIPMENT_STYLE_LABEL[goals.preferDumbbell ? "dumbbell" : prefs.equipmentStyle!]]);
   if (prefs.cardio) rows.push(["有酸素", CARDIO_CHOICE_LABEL[prefs.cardio]]);
+  if (prefs.warmupBike) rows.push(["ウォームアップのバイク", prefs.warmupBike === "yes" ? "使う" : "使わない"]);
   if (goals.priorityRegions.length) rows.push(["多めに", goals.priorityRegions.map((r) => REGION_LABEL[r]).join("・")]);
   if (prefs.lessRegions?.length) rows.push(["控えめに", prefs.lessRegions.map((r) => REGION_LABEL[r]).join("・")]);
   if (goals.favoriteExerciseIds.length) rows.push(["やりたい種目", goals.favoriteExerciseIds.map(exerciseName).join("・")]);

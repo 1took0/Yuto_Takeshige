@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { BodyRegion, CardioChoice, EquipmentStyle, Experience, Goals, Intensity, MenuPreferences, PastExercise, PreferenceNote } from "@/lib/types";
+import type { BodyRegion, CardioChoice, EquipmentStyle, Experience, Goals, Intensity, MenuPreferences, Objective, PastExercise, PreferenceNote } from "@/lib/types";
 import { PastExercisesStep } from "./PastExercisesStep";
 import { isExerciseDeleted } from "@/lib/catalog/exercises";
 import { ChipGroup, MultiChipGroup } from "@/components/ui/Chips";
 import { NumberField } from "@/components/ui/NumberField";
 import { REGION_LABEL, REGION_ORDER } from "@/lib/catalog/muscles";
-import { goalsOrDefault } from "@/lib/goals";
+import { OBJECTIVE_LABEL, goalsOrDefault } from "@/lib/goals";
 import { applyWishOps, describeWishOp, CARDIO_CHOICE_LABEL, EQUIPMENT_STYLE_LABEL, EXPERIENCE_LABEL, INTENSITY_LABEL, TIME_OPTIONS } from "@/lib/preferences";
 import { parseWish } from "@/lib/preferences/parse";
 import { getSettings, restoreExercise, updateSettings } from "@/lib/db/repo";
@@ -14,11 +14,16 @@ import { useExercises } from "@/hooks/useSettings";
 import { newId } from "@/lib/id";
 
 interface FormState {
-  experience: Experience;
+  /** 選ばなければ undefined（経験による補正はしない） */
+  experience: Experience | undefined;
+  /** 目標（複数）と左右差。以前は「はじめに」で聞いていた */
+  objectives: Objective[];
+  weakSide: Goals["weakSide"];
   timeLimit: number | null;
   intensity: Intensity;
   equipment: EquipmentStyle;
   cardio: CardioChoice;
+  warmupBike: "yes" | "no" | undefined;
   moreRegions: BodyRegion[];
   lessRegions: BodyRegion[];
   liked: string[];
@@ -64,12 +69,16 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
       setGoalsBase(g);
       setPrefsBase(p);
       setForm({
-        experience: p.experience ?? "beginner",
+        experience: p.experience,
+        objectives: g.objectives,
+        weakSide: g.weakSide,
         timeLimit: p.timeLimitMin !== undefined ? p.timeLimitMin : (s.lastTimeLimitMin ?? 60),
         intensity: p.intensity ?? "normal",
         // ダンベル優先は目標側のチェックが正（設定画面で外された場合は「どちらでも」に戻す）
         equipment: g.preferDumbbell ? "dumbbell" : p.equipmentStyle === "machine" ? "machine" : "balanced",
-        cardio: p.cardio ?? s.lastCardio ?? "walk",
+        // 有酸素は押し付けない：初期値は「なし」（答えたことがあればその答え）
+        cardio: p.cardio ?? "none",
+        warmupBike: p.warmupBike,
         moreRegions: g.priorityRegions,
         lessRegions: p.lessRegions ?? [],
         liked: g.favoriteExerciseIds,
@@ -109,7 +118,7 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
       let goals: Goals = goalsBase;
       let prefs: MenuPreferences = { ...prefsBase, answeredAt: prefsBase.answeredAt ?? now };
       if (!skip) {
-        goals = { ...goalsBase, priorityRegions: form.moreRegions, favoriteExerciseIds: form.liked, preferDumbbell: form.equipment === "dumbbell" };
+        goals = { ...goalsBase, objectives: form.objectives, weakSide: form.weakSide, priorityRegions: form.moreRegions, favoriteExerciseIds: form.liked, preferDumbbell: form.equipment === "dumbbell" };
         prefs = {
           ...prefs,
           experience: form.experience,
@@ -117,6 +126,7 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
           intensity: form.intensity,
           equipmentStyle: form.equipment,
           cardio: form.cardio,
+          warmupBike: form.warmupBike,
           lessRegions: form.lessRegions,
           dislikedExerciseIds: form.disliked,
           chronicPain: form.chronicPain.trim() || undefined,
@@ -172,7 +182,11 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
       <>
 
       <Field label="筋トレの経験">
-        <ChipGroup label="筋トレの経験" options={(Object.keys(EXPERIENCE_LABEL) as Experience[]).map((k) => ({ value: k, label: EXPERIENCE_LABEL[k] }))} value={form.experience} onChange={set("experience")} columns={4} />
+        <ChipGroup<Experience | null> label="筋トレの経験" options={(Object.keys(EXPERIENCE_LABEL) as Experience[]).map((k) => ({ value: k, label: EXPERIENCE_LABEL[k] }))} value={form.experience ?? null} onChange={(v) => set("experience")(v ?? undefined)} columns={4} />
+      </Field>
+      <Field label="目標（複数選択）">
+        <MultiChipGroup label="目標" options={(Object.keys(OBJECTIVE_LABEL) as Objective[]).map((o) => ({ value: o, label: OBJECTIVE_LABEL[o] }))} value={form.objectives} onChange={set("objectives")} />
+        <p className="mt-1 text-[11px] text-muted">体脂肪減少・ランニングを選ぶと有酸素の時間を多めに、筋力向上だけを選ぶと8回前後の重量を提案します。</p>
       </Field>
       <Field label="体格（任意）">
         <div className="space-y-2">
@@ -197,6 +211,20 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
           <p className="text-[11px] text-muted">初めての種目の重量の目安と、重量を上げるペースに使います。この端末の中だけに保存し、共有しません。</p>
         </div>
       </Field>
+      <Field label="左右差（弱い側）">
+        <ChipGroup
+          label="弱い側"
+          options={[
+            { value: "none" as const, label: "なし" },
+            { value: "left" as const, label: "左が弱い" },
+            { value: "right" as const, label: "右が弱い" },
+          ]}
+          value={form.weakSide}
+          onChange={set("weakSide")}
+          columns={3}
+        />
+        <p className="mt-1 text-[11px] text-muted">片手・片側の種目で、弱い側に合わせて重量を揃えます。</p>
+      </Field>
       <Field label="1回のトレーニング時間">
         <ChipGroup label="1回のトレーニング時間" options={TIME_OPTIONS} value={form.timeLimit} onChange={set("timeLimit")} columns={3} />
       </Field>
@@ -208,6 +236,19 @@ export function PreferencesForm({ mode, onDone, onCancel }: { mode: "first" | "e
       </Field>
       <Field label="有酸素運動">
         <ChipGroup label="有酸素運動の希望" options={(["none", "walk", "run"] as CardioChoice[]).map((k) => ({ value: k, label: CARDIO_CHOICE_LABEL[k] }))} value={form.cardio} onChange={set("cardio")} columns={3} />
+      </Field>
+      <Field label="ウォームアップのバイク（任意）">
+        <ChipGroup<"yes" | "no" | null>
+          label="ウォームアップのバイク"
+          options={[
+            { value: "yes", label: "使う" },
+            { value: "no", label: "使わない" },
+          ]}
+          value={form.warmupBike ?? null}
+          onChange={(v) => set("warmupBike")(v ?? undefined)}
+          columns={2}
+        />
+        <p className="mt-1 text-[11px] text-muted">筋トレの前に5〜6分のバイクを入れるかどうかです。選ばなければ、これまでの記録とその日の有酸素の選択で決めます。</p>
       </Field>
       <Field label="多めに鍛えたい部位（任意）">
         <MultiChipGroup label="多めに鍛えたい部位" options={REGION_ORDER.map((r) => ({ value: r, label: REGION_LABEL[r] }))} value={form.moreRegions} onChange={setMore} />

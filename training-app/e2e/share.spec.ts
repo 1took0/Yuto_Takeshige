@@ -76,12 +76,16 @@ test("新しい利用者は空の履歴から始まり、目標を設定でき�
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome/);
   await page.getByTestId("welcome-name").fill("ハナコ");
+  // 「はじめに」は名前と共有だけ。目標はヒアリングで答える
+  await expect(page.getByTestId("goals-editor")).toHaveCount(0);
+  await page.getByTestId("welcome-submit").click();
+  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
+  // 経験は初期選択なし（選ばなければ経験による補正をしない）
+  await expect(page.getByRole("radiogroup", { name: "筋トレの経験" }).getByRole("radio", { checked: true })).toHaveCount(0);
   await page.getByRole("button", { name: "筋力向上" }).click();
   await page.getByRole("radio", { name: "右が弱い" }).click();
-  await page.getByTestId("welcome-submit").click();
-  // 初めての人は続けてヒアリングが出る（ここではスキップ）
-  await expect(page.getByRole("heading", { name: "はじめてのヒアリング" })).toBeVisible();
-  await page.getByTestId("prefs-skip").click();
+  await page.getByTestId("prefs-next").click();
+  await page.getByTestId("prefs-past-skip").click();
   await expect(page.getByRole("heading", { name: "トレーニングコーチ" })).toBeVisible();
   await page.goto("/history");
   await expect(page.getByText("記録がありません")).toBeVisible();

@@ -375,6 +375,8 @@ export interface MenuPreferences {
   equipmentStyle?: EquipmentStyle;
   /** 有酸素の希望（毎回のヒアリングの初期値にもなる） */
   cardio?: CardioChoice;
+  /** ウォームアップにバイクを使うか（未回答なら記録と、その日の有酸素の選択で決める） */
+  warmupBike?: "yes" | "no";
   /** 1回のトレーニング時間の希望（分、null は制限なし） */
   timeLimitMin?: number | null;
   /** 控えたい部位 */

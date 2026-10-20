@@ -73,3 +73,18 @@ describe("これまでの記録から順番を学ぶ", () => {
     expect(workout.cardio.find((c) => c.id === items.at(-1)!.id)?.machine).toBe("treadmill");
   });
 });
+
+describe("作成者の記録（12回）での並び順", () => {
+  it("1回だけ順番が違った日があっても、多数決で本人の習慣どおりに並ぶ", async () => {
+    const { buildSeedWorkouts } = await import("@/lib/seed/history");
+    const { OWNER_GOALS } = await import("@/lib/goals");
+    const history = buildSeedWorkouts();
+    const { workout } = generatePlan({ intake: { ...intake, cardio: "run" }, history, storeEquipment: equipment, settings: { excludedExerciseIds: [], goals: OWNER_GOALS }, now });
+    const ids = workout.exercises.map((e) => e.exerciseId);
+    // 直近の記録では、レッグプレス→レッグカールが5回中4回、トレッドミルは最後が6回中5回
+    expect(ids.indexOf("leg_press")).toBeLessThan(ids.indexOf("leg_curl"));
+    const items = orderedItems(workout);
+    expect(workout.cardio.find((c) => c.id === items.at(-1)!.id)?.machine).toBe("treadmill");
+    expect(workout.cardio.find((c) => c.id === items[0].id)?.machine).toBe("bike");
+  });
+});

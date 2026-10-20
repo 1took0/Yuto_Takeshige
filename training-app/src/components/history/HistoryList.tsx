@@ -63,6 +63,8 @@ export function HistoryList() {
           )}
           {ws.map((w) => {
             const sets = w.exercises.reduce((a, e) => a + countedSets(e).length, 0);
+            // 実施した種目だけ数える（計画に入っていただけの種目は含めない）
+            const doneEx = w.exercises.filter((e) => countedSets(e).length > 0);
             const tm = w.cardio.find((c) => c.machine === "treadmill");
             return (
               <Link key={w.id} href={`/history/${w.id}`} className="card block p-3" data-testid="history-item">
@@ -75,12 +77,12 @@ export function HistoryList() {
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-muted">
-                  {w.exercises.length}種目・{sets}セット
+                  {doneEx.length}種目・{sets}セット
                   {w.durations?.totalMin ? `・${w.durations.totalMin}分${w.durations.dumbbellMin ? `（ダンベル${w.durations.dumbbellMin}分）` : ""}` : ""}
                   {tm?.actual?.totalMin ? `・トレッドミル${tm.actual.totalMin}分${tm.actual.runMin ? `（走${tm.actual.runMin}分）` : ""}` : ""}
                   {w.trainingDate === today && <span className="ml-1 rounded bg-success-soft px-1 text-success">今日</span>}
                 </div>
-                <div className="mt-1 truncate text-sm">{w.exercises.map((e) => e.name.replace(/（.*）/, "")).join("・")}</div>
+                <div className="mt-1 truncate text-sm">{(doneEx.length ? doneEx : w.exercises).map((e) => e.name.replace(/（.*）/, "")).join("・")}</div>
               </Link>
             );
           })}

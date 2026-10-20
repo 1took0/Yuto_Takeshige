@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/Toast";
 import { DurationEditor } from "./DurationEditor";
 import type { WorkoutDurations } from "@/lib/types";
 import { TrainingAdjust } from "@/components/adjust/TrainingAdjust";
+import { TimerIcon } from "@/components/ui/Icons";
 
 export function ActiveWorkoutView() {
   const { workout: w, loading, mutate, setWorkout, savedAt, saving } = useActiveWorkout();
@@ -52,19 +53,30 @@ export function ActiveWorkoutView() {
     !focusedId,
   );
 
-  // 初期状態：最初の未完了種目だけ開き、他は折りたたむ（ユーザー操作後は操作を優先）
+  // 初期状態：最初の未完了種目と、その前にある未完了の有酸素（ウォームアップ）だけ開き、他は折りたたむ
+  // （途中・最後の有酸素は、順番が来るまで閉じておく。ユーザー操作後は操作を優先）
   const collapsed = useMemo(() => {
     if (collapsedState) return collapsedState;
     const next: Record<string, boolean> = {};
     if (!w) return next;
-    let opened = false;
-    for (const e of w.exercises) {
-      const done = e.status === "skipped" || (e.sets.length > 0 && e.sets.filter((s) => !s.excluded).every((s) => s.completed));
-      next[e.id] = done || opened;
-      if (!done && !opened) opened = true;
+    let openedEx = false;
+    let openedCardio = false;
+    for (const it of items) {
+      if (it.kind === "exercise") {
+        const e = w.exercises.find((x) => x.id === it.id)!;
+        const done = e.status === "skipped" || (e.sets.length > 0 && e.sets.filter((s) => !s.excluded).every((s) => s.completed));
+        next[it.id] = done || openedEx;
+        if (!done && !openedEx) openedEx = true;
+      } else {
+        const c = w.cardio.find((x) => x.id === it.id)!;
+        const done = c.completed || !!c.skipped;
+        const open = !done && !openedCardio && !openedEx;
+        next[it.id] = !open;
+        if (open) openedCardio = true;
+      }
     }
     return next;
-  }, [collapsedState, w]);
+  }, [collapsedState, w, items]);
 
   if (loading) return <p className="py-10 text-center text-muted">読み込み中…</p>;
   if (!w || !progress) {
@@ -143,7 +155,7 @@ export function ActiveWorkoutView() {
       {visibleItems.map((it) => {
         if (it.kind === "cardio") {
           const c = w.cardio.find((x) => x.id === it.id);
-          return c ? <CardioCard key={c.id} entry={c} mutate={mutate} timerLink dragItem={reorder.itemProps(c.id)} dragHandle={reorder.handleProps(c.id)} /> : null;
+          return c ? <CardioCard key={c.id} entry={c} mutate={mutate} timerLink dragItem={reorder.itemProps(c.id)} dragHandle={reorder.handleProps(c.id)} collapsed={!!collapsed[c.id]} onToggleCollapse={() => toggleCollapse(c.id)} /> : null;
         }
         const idx = w.exercises.findIndex((x) => x.id === it.id);
         const e = w.exercises[idx];
@@ -217,7 +229,10 @@ export function ActiveWorkoutView() {
               トレーニングを終了・保存
             </button>
             <Link href="/timer/interval" className="btn-secondary">
-              ⏱ タイマー画面
+              <span className="inline-flex items-center gap-1.5">
+                <TimerIcon className="h-5 w-5" />
+                タイマー画面
+              </span>
             </Link>
             <button type="button" className="btn-secondary text-danger" onClick={() => setConfirmCancel(true)}>
               トレーニングをキャンセル

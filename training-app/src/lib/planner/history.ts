@@ -164,3 +164,17 @@ export function runHistory(ws: Workout[]): RunSummary[] {
   }
   return out;
 }
+
+/**
+ * 本人がその種目でいつも行うセット数（直近3回の中央値）。記録が無ければ undefined
+ * 標準のセット数を押し付けず、記録に合わせる
+ */
+export function learnedSets(ws: Workout[], exerciseId: string, storeId?: StoreId): number | undefined {
+  const counts = exerciseHistory(ws, exerciseId, storeId)
+    .map((h) => countedSets(h.exercise).length)
+    .filter((n) => n > 0)
+    .slice(0, 3)
+    .sort((a, b) => a - b);
+  if (!counts.length) return undefined;
+  return counts[Math.floor((counts.length - 1) / 2)];
+}

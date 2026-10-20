@@ -8,10 +8,10 @@ import { diffDays, trainingDateOf } from "@/lib/date/trainingDay";
 import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
 import { detectComeback, type Comeback } from "./comeback";
-import { cardioHabits, equipmentGroupOf, manualHabits, skipsCardio, trainingHabits } from "./habits";
+import { cardioHabits, equipmentGroupOf, manualHabits, skipsCardio, sortByHabits, trainingHabits } from "./habits";
 import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
-import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry } from "./history";
+import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry, learnedSets } from "./history";
 
 /**
  * ルールベースのメニュー生成
@@ -203,9 +203,11 @@ export function generatePlan(input: PlanInput): PlanResult {
   const tm = noCardio ? { mode: "walk" as const } : decideTreadmillMode(intake);
   const budget = computeBudget(intake, tm.mode, wantsCardio(goals));
   if (tm.reason) warnings.push(tm.reason);
-  // これまでの記録でバイクを一度も行っていない人には、ウォームアップのバイクを入れない（その分は筋トレに回す）
+  // ウォームアップのバイクは押し付けない：ヒアリングで「使わない」と答えた人、答えていなければ
+  // その日に有酸素「なし」を選んだ人と、これまでの記録でバイクを一度も行っていない人には入れない（その分は筋トレに回す）
   const cardioUse = cardioHabits(history, today);
-  const noBike = skipsCardio(cardioUse, "bike");
+  const noBike = prefs.warmupBike === "no" || (prefs.warmupBike !== "yes" && (noCardio || skipsCardio(cardioUse, "bike")));
+  const noBikeReason = prefs.warmupBike === "no" ? "ヒアリングでバイクを使わないと答えているため" : noCardio ? "有酸素なしを選んだため" : "これまでの記録にバイクが無いため";
   if (noBike && budget.warmupMin > 0) {
     budget.strengthMin += budget.warmupMin;
     budget.warmupMin = 0;
@@ -355,13 +357,15 @@ export function generatePlan(input: PlanInput): PlanResult {
     if (chosen.length >= maxExercises) break;
     // 重点部位が指定されていて合致しない種目は、必須枠以外は時間に余裕があるときだけ
     if (focusRegions && !c.slot.regions.some((r) => focusRegions.includes(r)) && remaining < budget.strengthMin * 0.35) continue;
-    const sets = Math.max(2, c.def.defaultSets + c.setsDelta);
+    // セット数は本人の記録（直近3回の中央値）があればそれを基準に、無ければ標準値
+    const baseSets = learnedSets(history, c.def.id) ?? c.def.defaultSets;
+    const sets = Math.max(2, baseSets + c.setsDelta);
     const mins = exerciseMinutes(c.def, sets);
     if (mins > remaining) {
       // 2セットなら入るか試す
       const mins2 = exerciseMinutes(c.def, 2);
       if (sets > 2 && mins2 <= remaining) {
-        c.setsDelta = 2 - c.def.defaultSets;
+        c.setsDelta = 2 - baseSets;
         remaining -= mins2;
         chosen.push(c);
       }
@@ -378,8 +382,9 @@ export function generatePlan(input: PlanInput): PlanResult {
     return g ? habits.groupPosition.get(g) : undefined;
   };
   const posOf = (c: Candidate) => habits.position.get(c.def.id) ?? groupPos(c.def.id) ?? (order.get(c.slot.key) ?? slots.length) / slots.length;
-  if (habits.count > 0) chosen.sort((a, b) => posOf(a) - posOf(b));
-  else chosen.sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
+  // 平均の位置で並べたあと、記録で「どちらが先か」がはっきりしている組はその順に直す（多数決）
+  const ordered = habits.count > 0 ? sortByHabits(chosen, habits, (c) => c.def.id, posOf) : [...chosen].sort((a, b) => (order.get(a.slot.key) ?? 99) - (order.get(b.slot.key) ?? 99));
+  chosen.splice(0, chosen.length, ...ordered);
 
   // ---- 重量・回数の決定 ----
   const exercises: WorkoutExercise[] = chosen.map((c) => buildPlannedExercise(c, history, store, sore, goals, prefs, storeEquipment, comeback));
@@ -401,13 +406,14 @@ export function generatePlan(input: PlanInput): PlanResult {
     summary.push(`トレッドミル ウォーキング ${Math.round(planTotalMin(plan))}分`);
   }
 
-  // 有酸素の位置：これまでの記録でバイク・トレッドミルを行った位置（最初／途中／最後）に合わせる
+  // 有酸素の位置：これまでの記録でバイク・トレッドミルを行った位置（筋トレの前／途中／後）の多数決に合わせる
   // 記録が無ければ、ウォームアップのバイクは最初、トレッドミルは最後
   const itemPos = new Map<string, number>();
-  chosen.forEach((c, i) => itemPos.set(exercises[i].id, habits.count > 0 ? posOf(c) : i / Math.max(1, chosen.length)));
+  chosen.forEach((c, i) => itemPos.set(exercises[i].id, i / Math.max(1, chosen.length)));
   for (const c of cardio) {
-    const learned = habits.cardioPosition.get(c.machine);
-    itemPos.set(c.id, learned ? learned.pos : c.role === "warmup" ? -1 : 2);
+    const placeOf = habits.cardioPlace.get(c.machine);
+    const mid = habits.cardioPosition.get(c.machine)?.pos;
+    itemPos.set(c.id, placeOf === "first" ? -1 : placeOf === "last" ? 2 : placeOf === "middle" && mid !== undefined ? mid : c.role === "warmup" ? -1 : 2);
   }
   const itemOrder = [...itemPos.keys()].sort((a, b) => itemPos.get(a)! - itemPos.get(b)!);
   const firstEx = itemOrder.findIndex((id) => exercises.some((e) => e.id === id));
@@ -417,7 +423,7 @@ export function generatePlan(input: PlanInput): PlanResult {
 
   const strengthMin = exercises.reduce((a, e) => a + exerciseMinutes(getExercise(e.exerciseId)!, e.sets.length), 0);
   summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）${budget.warmupMin ? `＋バイク${budget.warmupMin}分` : ""}`);
-  if (noBike) summary.push("これまでの記録にバイクが無いため、ウォームアップのバイクは入れていません");
+  if (noBike) summary.push(`${noBikeReason}、ウォームアップのバイクは入れていません`);
   if (comeback) summary.push(comeback.label);
   if (habits.count > 0) summary.push(`これまでの記録（直近${habits.count}回）の種目・順番を参考にしました`);
   if (sore.level !== "none") summary.push(`疲労部位（${[...sore.regions].map((r) => REGION_LABEL[r]).join("・")}）は負荷を調整`);
@@ -466,7 +472,7 @@ export function buildPlannedExercise(
   comeback: Comeback | null = null,
 ): WorkoutExercise {
   const def = c.def;
-  const sets = Math.max(2, def.defaultSets + c.setsDelta);
+  const sets = Math.max(2, (learnedSets(history, def.id) ?? def.defaultSets) + c.setsDelta);
   const step = stepFor(def, store, storeEquipment);
   const same = exerciseHistory(history, def.id, store);
   const any = exerciseHistory(history, def.id);

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 import { generatePlan } from "@/lib/planner";
 import { cardioHabits, skipsCardio } from "@/lib/planner/habits";
+import { runHistory } from "@/lib/planner/history";
 import { trainingDateOf } from "@/lib/date/trainingDay";
 import { getSettings, listCompletedWorkouts, listStoreEquipment, rememberIntakeDefaults, saveWish } from "@/lib/db/repo";
 import { ConfirmDialog } from "@/components/ui/Sheet";
@@ -45,8 +46,11 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
     let cancelled = false;
     Promise.all([getSettings(), listCompletedWorkouts()]).then(([s, history]) => {
       if (cancelled) return;
-      // これまでの記録でトレッドミルを一度も行っていない人は「有酸素なし」から（選び直せば入れられる）
-      const noTreadmill = skipsCardio(cardioHabits(history, trainingDateOf()), "treadmill");
+      // 有酸素の初期値は押し付けない：前回の選択 → ヒアリングの答え → 記録（走っていればランニング、歩いていればウォーキング）→ なし
+      // これまでの記録でトレッドミルを一度も行っていない人は「なし」から（選び直せば入れられる）
+      const use = cardioHabits(history, trainingDateOf());
+      const noTreadmill = skipsCardio(use, "treadmill");
+      const learned: CardioChoice = runHistory(history).some((r) => (r.runMin ?? 0) > 0) ? "run" : use.treadmill > 0 ? "walk" : "none";
       setForm({
         storeId: s.lastStoreId && (s.customStores ?? []).concat(STORES).some((x) => x.id === s.lastStoreId) ? s.lastStoreId : "ichijoji",
         timeLimit: s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
@@ -57,7 +61,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         pain: false,
         painDesc: "",
         focus: "auto",
-        cardio: noTreadmill ? "none" : (s.lastCardio ?? s.preferences?.cardio ?? "run"),
+        cardio: noTreadmill ? "none" : (s.lastCardio ?? s.preferences?.cardio ?? learned),
         memo: presetMemo ?? "",
       });
     });

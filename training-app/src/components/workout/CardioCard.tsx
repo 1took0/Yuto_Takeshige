@@ -7,7 +7,7 @@ import { formatDuration } from "@/lib/date/trainingDay";
 import { planDistanceKm, planRunMin, planTotalMin } from "@/lib/planner/cardio";
 import { removeCardio } from "@/lib/workout/edit";
 import { ConfirmDialog } from "@/components/ui/Sheet";
-import { GripIcon, TrashIcon } from "@/components/ui/Icons";
+import { BikeIcon, GripIcon, RunIcon, TimerIcon, TrashIcon } from "@/components/ui/Icons";
 import { SegmentEditor } from "@/components/timer/SegmentEditor";
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   mutate: (fn: (w: Workout) => Workout) => void;
   /** タイマーへのリンクを出す（アクティブ時） */
   timerLink?: boolean;
+  /** 開閉を親（トレーニング画面）が決めるとき。未指定なら自分で持つ */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
   dragItem?: { ref: (el: HTMLElement | null) => void; style?: React.CSSProperties; "data-dragging"?: string };
   dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
@@ -59,8 +62,13 @@ export function SegmentTable({ plan }: { plan: CardioSegment[] }) {
   );
 }
 
-export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }: Props) {
-  const [open, setOpen] = useState(!c.completed);
+export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle, collapsed, onToggleCollapse }: Props) {
+  const [openState, setOpenState] = useState(!c.completed);
+  const open = collapsed === undefined ? openState : !collapsed;
+  const toggleOpen = () => (onToggleCollapse ? onToggleCollapse() : setOpenState((v) => !v));
+  // 実績の入力欄は、計画と違ったときだけ開く（完了にするだけなら計画どおりとして記録）
+  const [showActual, setShowActual] = useState(false);
+  const hasActual = !!c.actual?.totalMin || !!c.actual?.note;
   const [confirmRemove, setConfirmRemove] = useState(false);
   // 計画の時間・負荷を自分で変える
   const [editing, setEditing] = useState(false);
@@ -70,11 +78,19 @@ export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }
   const title = c.machine === "bike" ? "エアロバイク" : "トレッドミル";
   const patch = (p: Partial<CardioEntry>) => mutate((w) => ({ ...w, cardio: w.cardio.map((x) => (x.id === c.id ? { ...x, ...p } : x)) }));
   const patchActual = (p: Partial<NonNullable<CardioEntry["actual"]>>) => patch({ actual: { ...c.actual, ...p } });
+  /** 計画どおり行ったときの実績 */
+  const planActual = (): NonNullable<CardioEntry["actual"]> => ({
+    totalMin: Math.round(total),
+    runMin: run || undefined,
+    runSpeedKmh: c.plan.find((s) => s.kind === "run")?.speedKmh,
+    longestRunMin: run ? Math.max(...c.plan.filter((s) => s.kind === "run").map((s) => s.durationSec / 60)) : undefined,
+  });
+  const complete = () => patch({ completed: true, skipped: false, actual: hasActual || !c.plan.length ? c.actual : { ...c.actual, ...planActual() } });
 
   return (
     <section className={`card overflow-hidden ${c.skipped ? "opacity-60" : ""}`} data-testid="cardio-card" {...dragItem}>
-      <header className="flex items-center gap-2 px-3 py-2.5" {...dragHandle} onClick={() => setOpen((v) => !v)} role="button" aria-expanded={open} tabIndex={0}>
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${c.completed ? "bg-success text-white" : "bg-card-2 text-muted"}`}>{c.completed ? "✓" : c.machine === "bike" ? "🚴" : "🏃"}</div>
+      <header className="flex items-center gap-2 px-3 py-2.5" {...dragHandle} onClick={toggleOpen} role="button" aria-expanded={open} tabIndex={0}>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${c.completed ? "bg-success text-white" : "bg-card-2 text-muted"}`}>{c.completed ? "✓" : c.machine === "bike" ? <BikeIcon className="h-5 w-5" /> : <RunIcon className="h-5 w-5" />}</div>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold">
             {title} <span className="text-sm font-normal text-muted">{c.role === "warmup" ? "ウォームアップ" : ""}</span>
@@ -102,9 +118,18 @@ export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }
           )}
           {timerLink && c.plan.length > 0 && !c.completed && (
             <Link href={`/timer/${c.machine}?entry=${c.id}`} className="btn-primary w-full">
-              ⏱ タイマーを開始（{formatDuration(total * 60)}）
+              <span className="inline-flex items-center gap-1.5">
+                <TimerIcon className="h-5 w-5" />
+                タイマーを開始（{formatDuration(total * 60)}）
+              </span>
             </Link>
           )}
+          {!showActual && !hasActual && !c.completed && c.plan.length > 0 && (
+            <button type="button" className="btn-ghost w-full py-1.5 text-sm text-accent" onClick={() => setShowActual(true)} data-testid="cardio-actual-open">
+              実績を入力（計画と違ったとき）
+            </button>
+          )}
+          {(showActual || hasActual || c.completed || !c.plan.length) && (
           <div className="rounded-xl bg-card-2 p-2">
             <div className="mb-1 text-xs font-semibold text-muted">実績（計画とは別に保存）</div>
             <div className="flex flex-wrap gap-2">
@@ -140,9 +165,10 @@ export function CardioCard({ entry: c, mutate, timerLink, dragItem, dragHandle }
               </button>
             )}
           </div>
+          )}
           <div className="flex items-center gap-2">
-            <button type="button" className={`flex-1 ${c.completed ? "btn-secondary" : "btn-primary"}`} onClick={() => patch({ completed: !c.completed, skipped: false })}>
-              {c.completed ? "完了を取り消す" : "完了にする"}
+            <button type="button" className={`flex-1 ${c.completed ? "btn-secondary" : "btn-primary"}`} onClick={() => (c.completed ? patch({ completed: false }) : complete())} data-testid="cardio-complete">
+              {c.completed ? "完了を取り消す" : hasActual || !c.plan.length ? "完了にする" : "計画どおり完了にする"}
             </button>
             <button type="button" className="tap flex items-center gap-1 px-2 text-sm text-danger" onClick={() => setConfirmRemove(true)} aria-label={`${title}を削除`} data-testid="cardio-delete">
               <TrashIcon className="h-4 w-4" />

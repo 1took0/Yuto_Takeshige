@@ -344,8 +344,12 @@ test("トレーニングをキャンセルでき、有酸素の入力は合計�
   await startWorkout(page);
   // 休憩時間の入力欄は無い
   await expect(page.getByLabel("休憩時間")).toHaveCount(0);
-  // トレッドミル：合計・走行・速度のみ
+  // トレッドミル：折りたたまれているので開き、実績の入力欄は「実績を入力」で出す。項目は合計・走行・速度のみ
   const tm = page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" });
+  await expect(tm.locator("header")).toHaveAttribute("aria-expanded", "false");
+  await tm.locator("header").click();
+  await expect(tm.getByLabel("合計時間", { exact: true })).toHaveCount(0);
+  await tm.getByTestId("cardio-actual-open").click();
   await expect(tm.getByLabel("合計時間", { exact: true })).toBeVisible();
   await expect(tm.getByLabel("ランニング時間", { exact: true })).toBeVisible();
   await expect(tm.getByLabel("ランニング速度", { exact: true })).toBeVisible();
@@ -483,6 +487,8 @@ test("種目カード：線画のゴミ箱・フォームは閉じた状態・�
   // 有酸素：「今日はやらない」は無く、削除できる
   await expect(page.getByRole("button", { name: "今日はやらない" })).toHaveCount(0);
   const tm = page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" });
+  // 順番が来るまで折りたたまれているので開いてから
+  await tm.locator("header").click();
   await tm.getByTestId("cardio-delete").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "削除" }).click();
   await expect(page.getByTestId("cardio-card").filter({ hasText: "トレッドミル" })).toHaveCount(0);

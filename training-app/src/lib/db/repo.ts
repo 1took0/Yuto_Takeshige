@@ -14,7 +14,6 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   lastStoreId: "ichijoji",
   lastTimeLimitMin: 90,
-  lastCardio: "run",
   sound: true,
   vibration: true,
   keepAwake: true,
