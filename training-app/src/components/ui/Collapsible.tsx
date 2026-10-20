@@ -28,15 +28,18 @@ export function Collapsible({ id, title, hint, children, badge }: { id: string; 
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const fromHash = typeof window !== "undefined" && window.location.hash === `#${id}`;
-    if (fromHash || readOpen().includes(id)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    const openFromHash = () => {
+      if (window.location.hash !== `#${id}`) return false;
       setOpen(true);
-      if (fromHash) {
-        writeOpen([...new Set([...readOpen(), id])]);
-        requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
-      }
-    }
+      writeOpen([...new Set([...readOpen(), id])]);
+      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+      return true;
+    };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!openFromHash() && readOpen().includes(id)) setOpen(true);
+    // 同じ画面の中で #id だけが変わったときも開く
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
   }, [id]);
 
   const toggle = () => {

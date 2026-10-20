@@ -219,6 +219,8 @@ export async function deleteExercise(id: string): Promise<void> {
   await updateSettings({
     deletedExerciseIds: [...new Set([...(s.deletedExerciseIds ?? []), id])],
     goals: s.goals ? { ...s.goals, favoriteExerciseIds: s.goals.favoriteExerciseIds.filter((x) => x !== id) } : s.goals,
+    // 「自動メニューから除外する種目」も種目一覧に合わせる
+    excludedExerciseIds: s.excludedExerciseIds.filter((x) => x !== id),
   });
 }
 

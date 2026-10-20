@@ -575,7 +575,12 @@ test("重量の刻みを店舗ごとに変えられ、全セット終えた次�
   await expect(page).toHaveURL(/\/history\//);
 
   // 次の回：前回 50kg を全セット達成 → 2.5kg 刻みで 52.5kg に挑戦。注意書きが出る
-  await startWorkout(page);
+  // 同じ日の2回目は脚が後回しになりやすいので、時間制限なしで作ってレッグプレスを入れる
+  await page.goto("/");
+  await page.getByTestId("start").click();
+  await page.getByRole("radio", { name: "制限なし" }).click();
+  await page.getByTestId("generate").click();
+  await expect(page.getByTestId("progress")).toBeVisible();
   const next = page.locator('[data-testid="exercise-card"][data-exercise-id="leg_press"]');
   if (!(await next.getByTestId("form-toggle").isVisible())) await next.locator("header").click();
   await expect(next.getByTestId("set-notice").first()).toContainText("新しい重量に挑戦（前回 50kg → 52.5kg）");
@@ -625,6 +630,19 @@ test("種目一覧の × で標準の種目を削除でき、種目の追加に�
   await expect(list.getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(0);
   await expect(page.getByTestId("deleted-ex")).toContainText("1件");
 
+  // 「定期的に入れたい種目」も種目一覧にある種目だけ
+  await page.goto("/settings#goals");
+  const favToggle = page.getByRole("button", { name: /定期的に入れたい種目/ });
+  if ((await favToggle.getAttribute("aria-expanded")) !== "true") await favToggle.click();
+  const goals = page.getByTestId("goals-editor");
+  await expect(goals.getByText("ベンチプレス", { exact: true })).toBeVisible();
+  await expect(goals.getByText("ペックフライ", { exact: true })).toHaveCount(0);
+  // 「自動メニューから除外する種目」も種目一覧と同じ
+  await page.goto("/settings#excluded");
+  const excluded = page.getByTestId("settings-excluded");
+  await expect(excluded.getByText("ベンチプレス", { exact: true })).toBeVisible();
+  await expect(excluded.getByText("ペックフライ", { exact: true })).toHaveCount(0);
+
   // トレーニング中の「種目を追加」にも出ない。そこからも × で削除できる
   await startWorkout(page);
   await page.getByTestId("add-exercise").click();
@@ -639,4 +657,23 @@ test("種目一覧の × で標準の種目を削除でき、種目の追加に�
   await page.getByTestId("deleted-ex").locator("summary").click();
   await page.getByTestId("deleted-ex").locator("li", { hasText: "ペックフライ" }).getByRole("button", { name: "元に戻す" }).click();
   await expect(page.getByTestId("custom-ex-list").getByTestId("exercise-row").filter({ hasText: /^ペックフライ/ })).toHaveCount(1);
+});
+
+test("店舗の器具：重量の刻みの数字が見え、変更できる", async ({ page }) => {
+  await page.goto("/settings#equipment");
+  const input = page.getByLabel("チェストプレスマシンの重量の刻み", { exact: true });
+  await expect(input).toHaveValue("5");
+  const box = (await input.boundingBox())!;
+  expect(box.width).toBeGreaterThan(40);
+  // 保存が終わる前に画面を離れないよう、再読み込みしても残っていることを確かめる
+  await expect(async () => {
+    const field = page.getByLabel("チェストプレスマシンの重量の刻み", { exact: true });
+    if ((await field.inputValue()) !== "2.5") {
+      await field.fill("2.5");
+      await field.press("Tab");
+      await page.waitForTimeout(300);
+    }
+    await page.reload();
+    await expect(page.getByLabel("チェストプレスマシンの重量の刻み", { exact: true })).toHaveValue("2.5", { timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
 });

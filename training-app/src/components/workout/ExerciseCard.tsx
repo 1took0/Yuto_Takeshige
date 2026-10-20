@@ -177,7 +177,7 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                   {weighted && onChangeStep && (
                     <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
                       この店舗の重量の刻み
-                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => v && v > 0 && onChangeStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-32" />
+                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => v && v > 0 && onChangeStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
                       <span className="w-full text-[11px]">{equipmentName(def.equipmentId)}で何kgずつ変えられるか。次回のメニュー作成と ± ボタンに使います</span>
                     </label>
                   )}

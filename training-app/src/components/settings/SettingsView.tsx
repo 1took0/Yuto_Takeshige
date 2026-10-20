@@ -144,16 +144,10 @@ export function SettingsView() {
           {rows.map(({ eq, row }) => {
             const state: "yes" | "no" | "unknown" = !row ? "unknown" : row.available ? (row.confirmed ? "yes" : "unknown") : "no";
             return (
-              <li key={eq.id} className="flex items-center gap-2 py-2 text-sm" data-testid="equipment-row">
+              <li key={eq.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm" data-testid="equipment-row">
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{eq.name}</div>
                   {row?.note && <div className="text-xs text-muted">{row.note}</div>}
-                  {defaultStep[eq.id] !== undefined && state !== "no" && (
-                    <label className="mt-1 flex items-center gap-1 text-xs text-muted">
-                      刻み
-                      <NumberField label={`${eq.name}の重量の刻み`} unit="kg" value={row?.stepKg ?? defaultStep[eq.id]} onChange={(v) => v && v > 0 && setStoreEquipment(store, eq.id, { stepKg: v })} step={0.5} min={0.5} max={20} size="sm" className="w-28" />
-                    </label>
-                  )}
                 </div>
                 <div className="flex gap-1" role="radiogroup" aria-label={`${eq.name}の有無`}>
                   <button type="button" role="radio" aria-checked={state === "yes"} className="chip min-h-9 px-3 py-1 text-xs" data-selected={state === "yes"} onClick={() => setStoreEquipment(store, eq.id, { available: true, confirmed: true })}>
@@ -166,6 +160,13 @@ export function SettingsView() {
                     ない
                   </button>
                 </div>
+                {/* 重量の刻みは数字が隠れないよう、器具名の下に1行で */}
+                {defaultStep[eq.id] !== undefined && state !== "no" && (
+                  <label className="flex basis-full items-center gap-2 text-xs text-muted">
+                    重量の刻み
+                    <NumberField label={`${eq.name}の重量の刻み`} unit="kg" value={row?.stepKg ?? defaultStep[eq.id]} onChange={(v) => v && v > 0 && setStoreEquipment(store, eq.id, { stepKg: v })} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
+                  </label>
+                )}
               </li>
             );
           })}
