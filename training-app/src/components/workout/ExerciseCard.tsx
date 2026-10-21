@@ -143,9 +143,9 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                 onToggle={() => {
                   mutate((w) => toggleSetCompleted(w, e.id, s.id));
                   if (!s.completed && onStartRest) {
-                    // この種目の最終セットを終えたときは休憩タイマーを出さない（出ていれば閉じる）
+                    // この種目の最終セットを終えたとき、時間の種目（プランクなど。セットのタイマーで数える）は休憩タイマーを出さない（出ていれば閉じる）
                     const remaining = e.sets.filter((x) => x.id !== s.id && !x.excluded && !x.completed).length;
-                    onStartRest(remaining > 0 ? e.restSec : null);
+                    onStartRest(remaining > 0 && def?.loadType !== "time" ? e.restSec : null);
                   }
                 }}
                 onRemove={() => handleRemoveSet(s)}

@@ -766,3 +766,34 @@ test("LifeFit 以外のジムを登録し、標準店舗を表示しないにし
   // トレッドミル・バイクは「ない」なので入らない
   await expect(page.getByTestId("cardio-card")).toHaveCount(0);
 });
+
+test("片手種目は左右の重量・回数の数字が見え、時間の種目はセットのタイマーで数えて完了になる（休憩タイマーは出ない）", async ({ page }) => {
+  await page.goto("/start?manual=1");
+  await page.getByTestId("manual-create").click();
+  // 片手ダンベルハンマーカール
+  await page.getByTestId("add-exercise").click();
+  await page.getByLabel("種目検索").fill("ハンマー");
+  await page.getByRole("button", { name: /^片手ダンベルハンマーカール/ }).first().click();
+  const ham = page.getByTestId("exercise-card").filter({ hasText: "ハンマーカール" });
+  const leftW = ham.getByRole("textbox", { name: "左の重量" }).first();
+  await leftW.fill("12");
+  await leftW.blur();
+  await expect(leftW).toHaveValue("12");
+  const box = (await leftW.boundingBox())!;
+  expect(box.width).toBeGreaterThan(40);
+  const rightR = ham.getByRole("textbox", { name: "右の目標回数" }).first();
+  expect((await rightR.boundingBox())!.width).toBeGreaterThan(40);
+
+  // サイドプランク：秒数を3秒にしてタイマーを押すと、終わったときにセットが完了になる
+  await page.getByTestId("add-exercise").click();
+  await page.getByLabel("種目検索").fill("サイドプランク");
+  await page.getByRole("button", { name: /^サイドプランク/ }).first().click();
+  const plank = page.getByTestId("exercise-card").filter({ hasText: "サイドプランク" });
+  await plank.locator("header").click();
+  const sec = plank.getByRole("textbox", { name: "秒数" }).first();
+  await sec.fill("3");
+  await sec.blur();
+  await plank.getByTestId("set-timer-toggle").first().click();
+  await expect(plank.getByRole("button", { name: /セット1を未完了に戻す/ })).toBeVisible({ timeout: 8000 });
+  await expect(page.getByTestId("rest-timer")).toHaveCount(0);
+});
