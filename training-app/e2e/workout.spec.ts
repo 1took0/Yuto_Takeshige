@@ -746,6 +746,8 @@ test("LifeFit 以外のジムを登録し、標準店舗を表示しないにし
   await page.getByTestId("settings-equipment").getByRole("button", { name: /店舗の器具/ }).click();
   await expect(page.locator(".chip[data-selected=true]", { hasText: "市営体育館" })).toBeVisible();
   await page.getByTestId("equipment-all-no").click();
+  await expect(page.getByTestId("equipment-all-no")).toBeEnabled();
+  await expect(page.getByRole("radiogroup", { name: "ダンベルの有無", exact: true }).getByRole("radio", { name: "ない" })).toHaveAttribute("aria-checked", "true");
   for (const name of ["パワーラック（バーベル）", "ベンチ", "ダンベル", "マット（自重）"]) {
     await page.getByRole("radiogroup", { name: `${name}の有無`, exact: true }).getByRole("radio", { name: "ある" }).click();
   }

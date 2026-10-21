@@ -56,8 +56,15 @@ export function SettingsView() {
     for (const e of hidden) await restoreExercise(e.id);
     if (hidden.length) toast(`${hidden.map((e) => e.name).join("・")}を種目一覧に加えました`, "success");
   };
+  // 一括変更の途中で1つの器具を変えると上書きされるので、まとめて書き込み、その間はボタンを押せなくする
+  const [bulkBusy, setBulkBusy] = useState(false);
   const setAll = async (available: boolean) => {
-    for (const { eq } of rows) await setStoreEquipment(store, eq.id, { available, confirmed: true });
+    setBulkBusy(true);
+    try {
+      await Promise.all(rows.map(({ eq }) => setStoreEquipment(store, eq.id, { available, confirmed: true })));
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   const exportJSON = async () => {
@@ -164,10 +171,10 @@ export function SettingsView() {
           ))}
         </div>
         <div className="mb-2 flex flex-wrap gap-2 text-xs">
-          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(true)} data-testid="equipment-all-yes">
+          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(true)} disabled={bulkBusy} data-testid="equipment-all-yes">
             すべて「ある」にする
           </button>
-          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(false)} data-testid="equipment-all-no">
+          <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={() => setAll(false)} disabled={bulkBusy} data-testid="equipment-all-no">
             すべて「ない」にする
           </button>
           <span className="basis-full text-[11px] text-muted">追加したジムでは「すべて「ない」」にしてから、ある器具だけ「ある」にすると早く設定できます。器具を「ある」にすると、その器具を使う標準の種目が種目一覧に加わります。</span>
