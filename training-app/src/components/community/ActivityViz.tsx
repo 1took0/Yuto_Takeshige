@@ -124,11 +124,11 @@ export function StoreLegend({ stores, dark }: { stores: [string, string | undefi
   );
 }
 
-/** 1回分のトレーニング量を横棒で（長さ＝セット数。30セットで最大。セットが0なら時間で、120分で最大） */
+/** 1回分のトレーニング量を横棒で（長さ＝セット数。30セットで最大。セットが0なら時間で、90分で最大） */
 export function SessionBar({ w }: { w: SharedWorkout }) {
   const dark = useDarkTheme();
   const total = w.durations?.totalMin;
-  const ratio = w.setCount > 0 ? Math.min(1, w.setCount / 30) : Math.min(1, (total ?? 0) / 120);
+  const ratio = w.setCount > 0 ? Math.min(1, w.setCount / 30) : Math.min(1, (total ?? 0) / 90);
   return (
     <div className="mt-1.5 flex items-center gap-2">
       <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
