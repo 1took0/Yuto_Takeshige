@@ -9,7 +9,7 @@ import { formatJaDate, shiftYMD } from "@/lib/date/trainingDay";
 
 /**
  * みんなの記録の可視化（誰が・いつ・どこで・どれくらい）
- * - 色＝店舗、濃さ＝その日のセット数（全員が必ず記録している量なので、これで比べる）
+ * - 色＝店舗、濃さ＝その日のセット数。セットを記録していない日（時間だけ・有酸素だけ）は時間で決める
  * - マスをタップすると、その日の詳細（店舗・セット数・時間）を下に出す（スマホでは title が出ないため）
  */
 
@@ -34,9 +34,13 @@ export function storeLabel(storeId: string, label: string | undefined, short = t
   return short ? shortNameOf(label) : label;
 }
 
-/** 量（0〜1）：24セットで最大。時間は開始〜保存の自動計算で、後から入力した記録では意味が無いため濃さには使わない */
-export function amountOf(_totalMin: number | undefined, setCount: number): number {
-  return Math.min(1, setCount / 24);
+/**
+ * 量（0〜1）：セットを記録した日は24セットで最大。
+ * セットが0の日（時間だけ入力した・有酸素だけの日）は時間で決める（90分で最大）
+ */
+export function amountOf(totalMin: number | undefined, setCount: number): number {
+  if (setCount > 0) return Math.min(1, setCount / 24);
+  return Math.min(1, (totalMin ?? 0) / 90);
 }
 
 export function amountText(totalMin: number | undefined, setCount: number, sessions = 1): string {
@@ -101,7 +105,7 @@ export function ActivityGrid({ users, myId, today, days = 14 }: { users: PublicU
         </p>
       )}
       <StoreLegend stores={[...storesSeen.entries()]} dark={dark} />
-      <p className="mt-1 text-[11px] text-muted">色＝店舗、濃いほどセット数が多い。マスをタップすると詳細が出ます。</p>
+      <p className="mt-1 text-[11px] text-muted">色＝店舗、濃いほどセット数が多い（セットを記録していない日は時間）。マスをタップすると詳細が出ます。</p>
     </div>
   );
 }
@@ -120,11 +124,11 @@ export function StoreLegend({ stores, dark }: { stores: [string, string | undefi
   );
 }
 
-/** 1回分のトレーニング量を横棒で（長さ＝セット数。30セットで最大。時間は文字で添える） */
+/** 1回分のトレーニング量を横棒で（長さ＝セット数。30セットで最大。セットが0なら時間で、120分で最大） */
 export function SessionBar({ w }: { w: SharedWorkout }) {
   const dark = useDarkTheme();
   const total = w.durations?.totalMin;
-  const ratio = Math.min(1, w.setCount / 30);
+  const ratio = w.setCount > 0 ? Math.min(1, w.setCount / 30) : Math.min(1, (total ?? 0) / 120);
   return (
     <div className="mt-1.5 flex items-center gap-2">
       <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
