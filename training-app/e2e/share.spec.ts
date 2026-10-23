@@ -75,6 +75,8 @@ test("新しい利用者は空の履歴から始まり、目標を設定でき�
   const page = await newUser(browser);
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome/);
+  // iPhone の Safari で開くと、ホーム画面に追加してアプリから始めるよう案内が出る
+  await expect(page.getByTestId("install-guide")).toContainText("ホーム画面に追加");
   await page.getByTestId("welcome-name").fill("ハナコ");
   // 「はじめに」は名前と共有だけ。目標はヒアリングで答える
   await expect(page.getByTestId("goals-editor")).toHaveCount(0);

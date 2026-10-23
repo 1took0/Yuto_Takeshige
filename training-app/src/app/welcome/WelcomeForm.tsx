@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getSettings, updateSettings } from "@/lib/db/repo";
 import { createProfile, enableSharing, shareApi } from "@/lib/share/client";
 import { useToast } from "@/components/ui/Toast";
+import { InstallGuide } from "@/components/layout/InstallGuide";
 
 /** 初回設定：名前・既存履歴の取り込み・目標・共有 */
 export function WelcomeForm() {
@@ -52,6 +53,8 @@ export function WelcomeForm() {
         <h1 className="text-2xl font-bold">はじめに</h1>
         <p className="text-sm text-muted">表示名と記録の共有だけ決めます。メニューの希望（目標・経験・時間など）は次のヒアリングで聞きます。どれもあとから設定画面で変更できます。</p>
       </header>
+
+      <InstallGuide />
 
       <section className="card space-y-2 p-3">
         <h2 className="font-semibold">表示名</h2>
