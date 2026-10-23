@@ -799,3 +799,24 @@ test("片手種目は左右の重量・回数の数字が見え、時間の種�
   await expect(plank.getByRole("button", { name: /セット1を未完了に戻す/ })).toBeVisible({ timeout: 8000 });
   await expect(page.getByTestId("rest-timer")).toHaveCount(0);
 });
+
+test("日付を選んで過去の記録を入力できる（履歴から）", async ({ page }) => {
+  await page.goto("/history");
+  await page.getByTestId("add-past-record").click();
+  await expect(page.getByRole("heading", { name: "自分でメニューを入力" })).toBeVisible();
+  await page.getByTestId("manual-date").fill("2026-10-01");
+  await expect(page.getByTestId("manual-create")).toContainText("10/1");
+  await page.getByTestId("manual-create").click();
+  await expect(page.getByText("10/1(木)").first()).toBeVisible();
+  await page.getByTestId("add-exercise").click();
+  await page.getByLabel("種目検索").fill("チェストプレス");
+  await page.getByRole("button", { name: /^チェストプレス/ }).first().click();
+  await page.getByTestId("exercise-card").first().getByRole("button", { name: /セット1を完了にする/ }).click();
+  await page.getByRole("button", { name: "休憩タイマーを閉じる" }).click();
+  await page.getByTestId("finish").click();
+  await page.getByTestId("finish-confirm").click();
+  await expect(page).toHaveURL(/\/history\//);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("10/1");
+  await page.goto("/history");
+  await expect(page.getByTestId("history-item").filter({ hasText: "10/1(木)" })).toHaveCount(1);
+});

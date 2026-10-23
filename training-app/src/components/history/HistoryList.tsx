@@ -36,7 +36,12 @@ export function HistoryList() {
     <div className="space-y-3">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">履歴</h1>
-        <span className="text-xs text-muted">{filtered.length}件</span>
+        <span className="flex items-center gap-3">
+          <Link href="/start?manual=1" className="text-sm text-accent" data-testid="add-past-record">
+            ＋ 過去の記録を追加
+          </Link>
+          <span className="text-xs text-muted">{filtered.length}件</span>
+        </span>
       </header>
       <div className="flex flex-wrap gap-2">
         <div className="flex gap-1">

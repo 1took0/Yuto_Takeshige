@@ -9,6 +9,7 @@ import { useStores } from "@/hooks/useSettings";
 import { getSettings, updateSettings } from "@/lib/db/repo";
 import { defaultStoreId, storeName } from "@/lib/catalog/stores";
 import { newManualWorkout } from "@/lib/workout/edit";
+import { formatJaDate, trainingDateOf, trainingDayStartISO } from "@/lib/date/trainingDay";
 import { useActiveWorkout } from "./ActiveWorkoutProvider";
 
 /** メニューを自動作成せず、自分で種目を入力して記録する */
@@ -17,6 +18,10 @@ export function ManualStartForm() {
   const stores = useStores();
   const { workout: active, setWorkout } = useActiveWorkout();
   const [storeId, setStoreId] = useState<StoreId | null>(null);
+  // 記録する日（過去の日付も選べる。未来は選べない）
+  const today = trainingDateOf();
+  const [date, setDate] = useState(today);
+  const isPast = date < today;
   const [busy, setBusy] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
 
@@ -41,7 +46,8 @@ export function ManualStartForm() {
         const { deleteWorkout } = await import("@/lib/db/repo");
         await deleteWorkout(active.id);
       }
-      await setWorkout(newManualWorkout(validStore, storeName(validStore)));
+      // 過去の日付は、その日の夜に行ったものとして記録する（日付の区切りは6時）
+      await setWorkout(newManualWorkout(validStore, storeName(validStore), isPast ? new Date(trainingDayStartISO(date, 19)) : new Date()));
       await updateSettings({ lastStoreId: validStore });
       router.push("/workout");
     } finally {
@@ -59,7 +65,20 @@ export function ManualStartForm() {
         </button>
         <h1 className="text-2xl font-bold">自分でメニューを入力</h1>
       </header>
-      <p className="text-sm text-muted">空のトレーニングから始めて、「＋ 種目を追加」「＋ 有酸素を追加」で自由に組み立てて記録できます。過去の日付の記録は、保存後に履歴の「編集」で日付を変えられます。</p>
+      <p className="text-sm text-muted">空のトレーニングから始めて、「＋ 種目を追加」「＋ 有酸素を追加」で自由に組み立てて記録できます。過去に行ったトレーニングも、日付を選んで記録できます。</p>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold text-muted">日付</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" className="input w-auto" value={date} max={today} onChange={(e) => e.target.value && setDate(e.target.value > today ? today : e.target.value)} aria-label="記録する日" data-testid="manual-date" />
+          {date !== today && (
+            <button type="button" className="btn-ghost px-2 py-1 text-xs" onClick={() => setDate(today)}>
+              今日にする
+            </button>
+          )}
+        </div>
+        {isPast && <p className="mt-1 text-xs text-muted">{formatJaDate(date)}の記録として保存します。行った種目・重量・回数を入れて、セットに✓を付けてから保存してください。</p>}
+      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-muted">店舗</h2>
@@ -73,7 +92,7 @@ export function ManualStartForm() {
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg bg-bg/95 px-4 pt-2 safe-bottom backdrop-blur">
         <button type="button" className="btn-primary w-full py-4 text-lg" disabled={busy} onClick={() => (active ? setConfirmReplace(true) : create())} data-testid="manual-create">
-          {busy ? "準備中…" : "入力を始める"}
+          {busy ? "準備中…" : isPast ? `${formatJaDate(date)}の記録を入力する` : "入力を始める"}
         </button>
       </div>
       <ConfirmDialog
