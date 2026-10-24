@@ -662,7 +662,7 @@ export function buildPlannedExercise(
   if (rule?.reps !== undefined && def.loadType !== "time") {
     reps = rule.reps;
     notes.push(`相談で決めた目標の${reps}回を使います${weighted
-      ? profile.policy?.strategy === "weight_first" ? "。固定目標の達成と実回数の余裕を確認して重量を調整します" : "。回数の希望だけでは重量を増やしません" : ""}`);
+      ? profile.policy?.strategy === "weight_first" ? "。固定目標の達成と増量条件を確認して重量を調整します" : "。回数の希望だけでは重量を増やしません" : ""}`);
   }
   if (rule?.seconds !== undefined && def.loadType === "time") seconds = rule.seconds;
   if (prefs.intensity === "hard" && def.loadType === "weight") notes.push("最終セットは限界近くまで");
