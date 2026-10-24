@@ -38,6 +38,9 @@ export function HomeView() {
           <Link href="/start" className="btn-primary w-full py-5 text-xl" data-testid="start">
             トレーニング開始
           </Link>
+          <Link href="/log-time" className="btn-secondary w-full" data-testid="time-only-start">
+            時間だけ記録
+          </Link>
           <Link href="/start?manual=1" className="btn-secondary w-full" data-testid="manual-start">
             メニューを自分で入力して記録
           </Link>

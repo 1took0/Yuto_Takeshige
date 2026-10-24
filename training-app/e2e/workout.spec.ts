@@ -820,3 +820,31 @@ test("日付を選んで過去の記録を入力できる（履歴から）", as
   await page.goto("/history");
   await expect(page.getByTestId("history-item").filter({ hasText: "10/1(木)" })).toHaveCount(1);
 });
+
+test("時間だけ記録：日付・店舗・時刻だけで保存でき、履歴に時刻が出る", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("time-only-start").click();
+  await expect(page.getByRole("heading", { name: "時間だけ記録" })).toBeVisible();
+  await page.getByTestId("time-date").fill("2026-10-02");
+  await page.getByRole("radio", { name: "東山二条" }).click();
+  await page.getByTestId("time-start").fill("18:00");
+  await page.getByTestId("time-end").fill("19:10");
+  await expect(page.getByTestId("time-total")).toContainText("70分");
+  // 日をまたぐ時刻・朝6時前の時刻も、その日のトレーニングとして計算する
+  await page.getByTestId("time-start").fill("23:30");
+  await page.getByTestId("time-end").fill("00:40");
+  await expect(page.getByTestId("time-total")).toContainText("70分");
+  await page.getByTestId("time-start").fill("01:00");
+  await page.getByTestId("time-end").fill("02:00");
+  await expect(page.getByTestId("time-total")).toContainText("60分");
+  await page.getByTestId("time-start").fill("18:00");
+  await page.getByTestId("time-end").fill("19:10");
+  await page.getByTestId("time-save").click();
+  await expect(page).toHaveURL(/\/history\//);
+  await expect(page.getByText("時間だけの記録 18:00〜19:10")).toBeVisible();
+  await page.goto("/history");
+  const item = page.getByTestId("history-item").filter({ hasText: "10/2(金)" });
+  await expect(item).toContainText("時間だけの記録");
+  await expect(item).toContainText("東山二条");
+  await expect(item).toContainText("70分");
+});

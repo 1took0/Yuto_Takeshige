@@ -273,6 +273,8 @@ export interface Workout {
   source: "app" | "import";
   /** メニューを自動作成せず、自分で入力した記録 */
   manual?: boolean;
+  /** 時間だけの記録（種目・セットは無く、日付・店舗・時刻だけ） */
+  timeOnly?: boolean;
   /** 折りたたみ等のUI状態 */
   ui?: { focusedExerciseId?: string | null };
   notes?: string;

@@ -5,7 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { listCompletedWorkouts } from "@/lib/db/repo";
 import { workoutStoreName } from "@/lib/catalog/stores";
 import { useStores } from "@/hooks/useSettings";
-import { formatJaDate, monthOf, trainingDateOf, weekStartOf, shiftYMD } from "@/lib/date/trainingDay";
+import { formatJaDate, formatTimeHM, monthOf, trainingDateOf, weekStartOf, shiftYMD } from "@/lib/date/trainingDay";
 import { countedSets } from "@/lib/planner/history";
 import type { StoreId } from "@/lib/types";
 
@@ -87,7 +87,7 @@ export function HistoryList() {
                   </div>
                 </div>
                 <div className="mt-1 text-xs text-muted">
-                  {doneEx.length}種目・{sets}セット
+                  {w.timeOnly ? `時間だけの記録 ${formatTimeHM(w.startedAt)}〜${w.endedAt ? formatTimeHM(w.endedAt) : ""}` : `${doneEx.length}種目・${sets}セット`}
                   {w.durations?.totalMin ? `・${w.durations.totalMin}分${w.durations.dumbbellMin ? `（ダンベル${w.durations.dumbbellMin}分）` : ""}` : ""}
                   {tm?.actual?.totalMin ? `・トレッドミル${tm.actual.totalMin}分${tm.actual.runMin ? `（走${tm.actual.runMin}分）` : ""}` : ""}
                   {w.trainingDate === today && <span className="ml-1 rounded bg-success-soft px-1 text-success">今日</span>}

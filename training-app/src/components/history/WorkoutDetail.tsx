@@ -7,7 +7,7 @@ import { deleteWorkout, getWorkout, listStoreEquipment, saveWorkout, setStoreEqu
 import type { Workout } from "@/lib/types";
 import { storeName, workoutStoreName } from "@/lib/catalog/stores";
 import { useStores } from "@/hooks/useSettings";
-import { formatJaDate } from "@/lib/date/trainingDay";
+import { formatJaDate, formatTimeHM } from "@/lib/date/trainingDay";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
 import { CardioCard } from "@/components/workout/CardioCard";
 import { BikeIcon, RunIcon, TimerIcon } from "@/components/ui/Icons";
@@ -86,7 +86,7 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
             {formatJaDate(w.trainingDate)} <span className="text-sm font-normal text-muted">{w.trainingDate.slice(0, 4)}</span>
           </h1>
           <div className="text-xs text-muted">
-            {workoutStoreName(w)} ・ {w.exercises.length}種目 {totalSets}セット{w.source === "import" && " ・ 取り込みデータ"}
+            {workoutStoreName(w)} ・ {w.timeOnly ? `時間だけの記録 ${formatTimeHM(w.startedAt)}〜${w.endedAt ? formatTimeHM(w.endedAt) : ""}` : `${w.exercises.length}種目 ${totalSets}セット`}{w.source === "import" && " ・ 取り込みデータ"}
           </div>
         </div>
         <button type="button" className={`btn-secondary px-3 ${editing ? "border-accent text-accent" : ""}`} onClick={() => (editing ? stopEditing() : startEditing())} data-testid="edit-toggle">

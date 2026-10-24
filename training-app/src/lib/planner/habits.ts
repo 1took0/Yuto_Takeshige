@@ -184,8 +184,9 @@ export interface CardioHabits {
  * 完了にした、または実績を入れたものだけ数える（自動作成で入ったまま手を付けなかったものは数えない）
  */
 export function cardioHabits(history: Workout[], today: string, opts: { maxSessions?: number; withinDays?: number } = {}): CardioHabits {
+  // 時間だけの記録は、有酸素を行ったかどうか分からないので数えない
   const sessions = sortByDateDesc(history)
-    .filter((w) => diffDays(today, w.trainingDate) < (opts.withinDays ?? 56))
+    .filter((w) => !w.timeOnly && diffDays(today, w.trainingDate) < (opts.withinDays ?? 56))
     .slice(0, opts.maxSessions ?? 6);
   const did = (w: Workout, machine: CardioMachine) => w.cardio.some((c) => c.machine === machine && !c.skipped && (c.completed || (c.actual?.totalMin ?? 0) > 0));
   return { sessions: sessions.length, bike: sessions.filter((w) => did(w, "bike")).length, treadmill: sessions.filter((w) => did(w, "treadmill")).length };
