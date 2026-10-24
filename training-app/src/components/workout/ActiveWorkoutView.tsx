@@ -177,6 +177,11 @@ export function ActiveWorkoutView() {
             collapsed={!!collapsed[e.id] && !focusedId}
             focused={focusedId === e.id}
             onToggleCollapse={() => toggleCollapse(e.id)}
+            onComplete={() => {
+              // 手動開閉後も、並び位置ではなく種目IDで完了したカードを閉じる。
+              // 初期状態のままなら自動計算に任せ、次の未完了種目も開く。
+              setCollapsed((current) => current ? { ...current, [e.id]: true } : null);
+            }}
             onFocus={() => setFocus(focusedId === e.id ? null : e.id)}
             onStartRest={(sec) => {
               if (sec === null) {

@@ -21,6 +21,8 @@ interface Props {
   focused: boolean;
   onToggleCollapse: () => void;
   onFocus: () => void;
+  /** 最後の未完了セットをチェックしたとき（履歴編集では指定しない） */
+  onComplete?: () => void;
   /** セット完了時の休憩タイマー（null は閉じる：最終セットのとき） */
   onStartRest?: (sec: number | null) => void;
   /** 履歴編集モード（スキップなどは非表示） */
@@ -33,7 +35,7 @@ interface Props {
   dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
 }
 
-export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onStartRest, editOnly, dragItem, dragHandle, step, onChangeStep }: Props) {
+export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onComplete, onStartRest, editOnly, dragItem, dragHandle, step, onChangeStep }: Props) {
   const def = getExercise(e.exerciseId);
   const weighted = def?.loadType === "weight" || def?.loadType === "assist";
   // 前回（同じ店舗）より重い重量・多い回数に挑戦するセットには注意書きを出す
@@ -161,10 +163,11 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                 onChange={(patch) => mutate((w) => updateSet(w, e.id, s.id, patch))}
                 onToggle={() => {
                   mutate((w) => toggleSetCompleted(w, e.id, s.id));
-                  if (!s.completed && onStartRest) {
+                  if (!s.completed) {
                     // この種目の最終セットを終えたとき、時間の種目（プランクなど。セットのタイマーで数える）は休憩タイマーを出さない（出ていれば閉じる）
                     const remaining = e.sets.filter((x) => x.id !== s.id && !x.excluded && !x.completed).length;
-                    onStartRest(remaining > 0 && def?.loadType !== "time" ? e.restSec : null);
+                    onStartRest?.(remaining > 0 && def?.loadType !== "time" ? e.restSec : null);
+                    if (remaining === 0) onComplete?.();
                   }
                 }}
                 onRemove={() => handleRemoveSet(s)}
