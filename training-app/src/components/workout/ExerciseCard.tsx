@@ -21,19 +21,21 @@ interface Props {
   focused: boolean;
   onToggleCollapse: () => void;
   onFocus: () => void;
+  /** 最後の未完了セットをチェックしたとき（履歴編集では指定しない） */
+  onComplete?: () => void;
   /** セット完了時の休憩タイマー（null は閉じる：最終セットのとき） */
   onStartRest?: (sec: number | null) => void;
   /** 履歴編集モード（スキップなどは非表示） */
   editOnly?: boolean;
   /** この店舗での重量の刻み(kg)と、刻みを変えたときの保存先 */
   step?: number;
-  onChangeStep?: (stepKg: number) => void;
+  onChangeStep?: (stepKg: number) => Promise<void>;
   /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
   dragItem?: { ref: (el: HTMLElement | null) => void; style?: React.CSSProperties; "data-dragging"?: string };
   dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
 }
 
-export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onStartRest, editOnly, dragItem, dragHandle, step, onChangeStep }: Props) {
+export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, onToggleCollapse, onFocus, onComplete, onStartRest, editOnly, dragItem, dragHandle, step, onChangeStep }: Props) {
   const def = getExercise(e.exerciseId);
   const weighted = def?.loadType === "weight" || def?.loadType === "assist";
   // 前回（同じ店舗）より重い重量・多い回数に挑戦するセットには注意書きを出す
@@ -51,6 +53,15 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
     return undefined;
   };
   const toast = useToast();
+  const saveStep = async (value: number | undefined) => {
+    if (!onChangeStep || value === undefined || value <= 0) return;
+    try {
+      await onChangeStep(value);
+      toast(`この店舗の器具設定に刻み ${value}kg を保存しました`, "success");
+    } catch {
+      toast("重量の刻みを保存できませんでした。もう一度入力してください", "error");
+    }
+  };
   const [showInfo, setShowInfo] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ set: WorkoutSet } | null>(null);
   const [confirmRemoveEx, setConfirmRemoveEx] = useState(false);
@@ -95,7 +106,8 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-bold">
             {e.name}
-            {e.weightReference === "other_store" && <span className="ml-1 rounded bg-warn-soft px-1 text-[10px] font-medium text-warn">参考値</span>}
+            {e.weightReference === "other_store" && <span className="ml-1 rounded bg-warn-soft px-1 text-[10px] font-medium text-warn">他店舗の参考値</span>}
+            {weighted && e.weightReference === "same_store" && <span className="ml-1 rounded bg-card-2 px-1 text-[10px] font-medium">この店舗の実績</span>}
           </h3>
           <div className="truncate text-xs text-muted">
             {musclesLabel(e.primary)} ・ {active.length}セット {def?.loadType === "time" ? "" : `×${active[0]?.reps ?? def?.defaultReps ?? "-"}回`} ・ {summary}
@@ -117,7 +129,7 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
         <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
           {e.previous && (
             <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted">
-              前回 {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? e.previous.storeLabel ?? "別の店舗"}：{" "}
+              {weighted ? e.weightReference === "same_store" ? "この店舗の基準" : "他店舗の参考" : "前回"} {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? e.previous.storeLabel ?? "別の店舗"}：{" "}
               <span className="text-fg tabular">
                 {e.previous.sets
                   .map((s) => (s.seconds !== undefined && s.weight === undefined ? `${s.seconds}秒` : s.left?.weight !== undefined ? `${s.left.weight}` : s.weight !== undefined ? `${s.weight}` : "?"))
@@ -127,6 +139,15 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
               {e.previous.sets.some((s) => s.actualReps !== undefined) && <span>（{e.previous.sets.map((s) => s.actualReps ?? "?").join("/")}回）</span>}
             </div>
           )}
+          {weighted && e.otherStorePrevious && (
+            <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted" data-testid="other-store-reference">
+              他店舗の参考 {formatJaDate(e.otherStorePrevious.trainingDate)}・{findStore(e.otherStorePrevious.storeId)?.shortName ?? e.otherStorePrevious.storeLabel ?? "別の店舗"}：
+              {e.otherStorePrevious.sets.map((s) => s.left || s.right
+                ? `左${s.left?.weight ?? "?"} / 右${s.right?.weight ?? "?"} kg`
+                : `${s.weight ?? "?"} kg`).join("、")}。同じ負荷とは限らないため、この店舗の基準には上書きしません。
+            </div>
+          )}
+          {weighted && !editOnly && <p className="text-xs text-muted">この店舗で実際に使った重量・回数に直して完了をチェックしてください。トレーニング終了後、次回この店舗での重量調整に使います。</p>}
           {e.rationale && <p className="text-xs text-muted">{e.rationale}</p>}
           {e.note && !showInfo && <p className="text-xs">📝 {e.note}</p>}
 
@@ -142,10 +163,11 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                 onChange={(patch) => mutate((w) => updateSet(w, e.id, s.id, patch))}
                 onToggle={() => {
                   mutate((w) => toggleSetCompleted(w, e.id, s.id));
-                  if (!s.completed && onStartRest) {
+                  if (!s.completed) {
                     // この種目の最終セットを終えたとき、時間の種目（プランクなど。セットのタイマーで数える）は休憩タイマーを出さない（出ていれば閉じる）
                     const remaining = e.sets.filter((x) => x.id !== s.id && !x.excluded && !x.completed).length;
-                    onStartRest(remaining > 0 && def?.loadType !== "time" ? e.restSec : null);
+                    onStartRest?.(remaining > 0 && def?.loadType !== "time" ? e.restSec : null);
+                    if (remaining === 0) onComplete?.();
                   }
                 }}
                 onRemove={() => handleRemoveSet(s)}
@@ -177,8 +199,8 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                   {weighted && onChangeStep && (
                     <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
                       この店舗の重量の刻み
-                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => v && v > 0 && onChangeStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
-                      <span className="w-full text-[11px]">{equipmentName(def.equipmentId)}で何kgずつ変えられるか。次回のメニュー作成と ± ボタンに使います</span>
+                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => void saveStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
+                      <span className="w-full text-[11px]">入力を確定すると「設定 → 店舗の器具」の{equipmentName(def.equipmentId)}にも保存します。この店舗で同じ器具を使う種目の ± ボタンと次回のメニュー作成に反映し、他店舗の刻みは変更しません。作成済みの重量や実績は変わりません。</span>
                     </label>
                   )}
                 </>

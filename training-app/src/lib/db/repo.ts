@@ -146,17 +146,21 @@ export async function listStoreEquipment(storeId?: StoreId): Promise<StoreEquipm
 
 export async function setStoreEquipment(storeId: StoreId, equipmentId: string, patch: Partial<Pick<StoreEquipment, "available" | "confirmed" | "note" | "stepKg">>): Promise<void> {
   const key = `${storeId}:${equipmentId}`;
-  const cur = await db().storeEquipment.get(key);
-  await db().storeEquipment.put({
-    key,
-    storeId,
-    equipmentId,
-    available: cur?.available ?? true,
-    confirmed: cur?.confirmed ?? false,
-    stepKg: cur?.stepKg,
-    note: cur?.note,
-    ...patch,
-    updatedAt: new Date().toISOString(),
+  const database = db();
+  // メニュー・設定画面・実績確認が同時に更新しても、刻みや器具情報を消さない。
+  await database.transaction("rw", database.storeEquipment, async () => {
+    const cur = await database.storeEquipment.get(key);
+    await database.storeEquipment.put({
+      key,
+      storeId,
+      equipmentId,
+      available: cur?.available ?? true,
+      confirmed: cur?.confirmed ?? false,
+      stepKg: cur?.stepKg,
+      note: cur?.note,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
 

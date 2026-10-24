@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { TrainingDB, setDb } from "./index";
-import { countImportedSeed, ensureSeeded, importWorkouts, listCompletedWorkouts, listStoreEquipment, saveWorkout, deleteWorkout, setWorkoutChangeListener } from "./repo";
+import { countImportedSeed, ensureSeeded, importWorkouts, listCompletedWorkouts, listStoreEquipment, saveWorkout, deleteWorkout, setWorkoutChangeListener, setStoreEquipment } from "./repo";
 import { buildSeedWorkouts } from "@/lib/seed/history";
 
 let n = 0;
@@ -10,6 +10,21 @@ beforeEach(() => {
 });
 
 describe("repo", () => {
+  it("刻みと器具状態の同時更新を保持し、別店舗・別器具には反映しない", async () => {
+    await setStoreEquipment("A", "chest_press", { stepKg: 5, note: "保持するメモ" });
+    await setStoreEquipment("B", "chest_press", { stepKg: 10 });
+    await setStoreEquipment("A", "dumbbells", { stepKg: 1 });
+    await Promise.all([
+      setStoreEquipment("A", "chest_press", { stepKg: 2.5 }),
+      setStoreEquipment("A", "chest_press", { available: false, confirmed: true }),
+    ]);
+    const rows = await listStoreEquipment();
+    expect(rows.find((r) => r.key === "A:chest_press")).toMatchObject({ stepKg: 2.5, available: false, confirmed: true, note: "保持するメモ" });
+    expect(rows.find((r) => r.key === "B:chest_press")?.stepKg).toBe(10);
+    expect(rows.find((r) => r.key === "A:dumbbells")?.stepKg).toBe(1);
+    await Promise.all([setStoreEquipment("A", "chest_press", { stepKg: 3 }), setStoreEquipment("A", "chest_press", { stepKg: 5 })]);
+    expect((await listStoreEquipment("A")).find((r) => r.equipmentId === "chest_press")?.stepKg).toBe(5);
+  });
   it("起動時は器具だけ投入し、履歴は取り込まない", async () => {
     await ensureSeeded();
     expect((await listStoreEquipment()).length).toBeGreaterThan(10);

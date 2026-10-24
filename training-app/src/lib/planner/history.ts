@@ -40,11 +40,19 @@ export function toPrevious(entry: ExerciseHistoryEntry): PreviousPerformance {
   };
 }
 
-/** 直近の使用重量（最後に完了したセットの重量＝ワーキングウェイト） */
+/** 最後に完了した重量入力済みセット。左右別入力を優先し、両側に無理のない方を基準にする。 */
 export function workingWeight(e: WorkoutExercise): number | undefined {
-  const sets = countedSets(e).filter((s) => typeof s.weight === "number");
-  if (!sets.length) return undefined;
-  return sets[sets.length - 1].weight;
+  const valid = (v: number | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  for (const s of [...countedSets(e)].reverse()) {
+    if (s.left || s.right) {
+      // 片側だけ未報告のときに、共通欄の予定重量で補完しない。
+      if (valid(s.left?.weight) && valid(s.right?.weight)) {
+        return getExercise(e.exerciseId)?.loadType === "assist"
+          ? Math.max(s.left.weight, s.right.weight) : Math.min(s.left.weight, s.right.weight);
+      }
+    } else if (valid(s.weight)) return s.weight;
+  }
+  return undefined;
 }
 
 export function workingSeconds(e: WorkoutExercise): number | undefined {

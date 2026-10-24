@@ -165,6 +165,8 @@ export interface WorkoutExercise {
   note?: string;
   /** 前回実績の要約（表示用） */
   previous?: PreviousPerformance;
+  /** この店舗の実績とは分けて表示する、他店舗での直近の重量記録 */
+  otherStorePrevious?: PreviousPerformance;
   status: ExerciseStatus;
   /** 重量の参考元が別店舗の場合など、同一負荷とみなせないときに true */
   weightReference?: "same_store" | "other_store" | "none";
@@ -284,6 +286,8 @@ export interface Workout {
 
 export interface Settings {
   id: "settings";
+  /** AIへ渡す相談・理想のメニュー。端末内に保存し、内蔵プランナーには自動適用しない。 */
+  aiCoachRequest?: string;
   theme: "system" | "light" | "dark";
   lastStoreId?: StoreId;
   /** 表示しない標準店舗（LifeFit を使わない人向け。記録と器具の設定は残る） */

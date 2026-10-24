@@ -190,7 +190,7 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   }
   if (misses >= profile.deloadAfter) {
     const lowered = assist ? roundToStep(w0 * (1 + profile.deloadPct), step) : Math.min(w0 - step, roundToStep(w0 * (1 - profile.deloadPct), step));
-    const w = assist ? Math.max(lowered, w0 + step) : Math.max(step, lowered);
+    const w = assist ? Math.max(lowered, w0 + step) : Math.min(w0, Math.max(step, lowered));
     return { kind: "deload", weight: w, reps: reps0, notes: [`${misses}回続けて目標回数に届かなかったため、${assist ? "補助を増やして" : "重量を約10%下げて"}やり直します`] };
   }
   if (last.outcome.missed) {

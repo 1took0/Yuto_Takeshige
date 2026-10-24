@@ -140,7 +140,10 @@ export function WorkoutDetail({ id, justSaved }: { id: string; justSaved?: boole
             const i = w.exercises.findIndex((x) => x.id === it.id);
             const e = w.exercises[i];
             const def = getExercise(e?.exerciseId ?? "");
-            return e ? <ExerciseCard key={e.id} exercise={e} index={i} step={def ? stepFor(def, w.storeId, equipment) : undefined} onChangeStep={(v) => def && void setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v })} dragItem={reorder.itemProps(e.id)} dragHandle={reorder.handleProps(e.id)} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly /> : null;
+            return e ? <ExerciseCard key={e.id} exercise={e} index={i} step={def ? stepFor(def, w.storeId, equipment) : undefined} onChangeStep={async (v) => {
+              if (!def) throw new Error("種目が見つかりません");
+              await setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v });
+            }} dragItem={reorder.itemProps(e.id)} dragHandle={reorder.handleProps(e.id)} mutate={mutate} collapsed={!!collapsed[e.id]} focused={false} onToggleCollapse={() => setCollapsed((c) => ({ ...c, [e.id]: !c[e.id] }))} onFocus={() => {}} editOnly /> : null;
           })}
           <button type="button" className="btn-secondary w-full" onClick={() => setShowAdd(true)}>
             ＋ 種目を追加

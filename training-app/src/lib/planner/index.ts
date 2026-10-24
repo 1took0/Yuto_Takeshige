@@ -498,8 +498,11 @@ export function buildPlannedExercise(
   const step = stepFor(def, store, storeEquipment);
   const same = exerciseHistory(history, def.id, store);
   const any = exerciseHistory(history, def.id);
-  const ref: ExerciseHistoryEntry | undefined = same[0] ?? any[0];
-  const isOtherStore = !same[0] && !!any[0];
+  const weighted = def.loadType === "weight" || def.loadType === "assist";
+  const sameLoad = same.find((h) => workingWeight(h.exercise) !== undefined);
+  const otherLoad = any.find((h) => h.workout.storeId !== store && workingWeight(h.exercise) !== undefined);
+  const ref: ExerciseHistoryEntry | undefined = weighted ? sameLoad ?? otherLoad : same[0] ?? any[0];
+  const isOtherStore = !!ref && ref.workout.storeId !== store;
   const notes = [...c.notes];
   const profile = progressionProfile(def, prefs, goals);
   const [lo] = profile.repRange;
@@ -523,11 +526,24 @@ export function buildPlannedExercise(
       reps += 1;
       notes.push("前回は全セット達成 → 回数を+1");
     } else if (last && !last.outcome.success) notes.push("前回は全セット達成していないため回数は据え置き");
-  } else if (same[0] && workingWeight(same[0].exercise) !== undefined) {
+  } else if (sameLoad) {
     // 同じ店舗の記録から、体格・経験・種目に合わせたペースで進める
     weightReference = "same_store";
-    const past = same.map((h) => toPastSession(h.exercise));
-    const next = decideNextLoad(def, past, step, profile);
+    const past = same.slice(same.indexOf(sameLoad)).map((h) => {
+      const session = toPastSession(h.exercise);
+      const incompleteLoad = h.exercise.sets.some((s) => s.completed && !s.excluded
+        && (workingWeight({ ...h.exercise, sets: [s] }) === undefined
+          || ((s.left || s.right) && (s.left?.actualReps === undefined || s.right?.actualReps === undefined))));
+      return incompleteLoad ? { ...session, outcome: { ...session.outcome, success: false, unreported: true } } : session;
+    });
+    const offStep = Math.abs(past[0].weight! / step - Math.round(past[0].weight! / step)) > 1e-6;
+    const next = sameLoad !== same[0]
+      ? { kind: "hold" as const, weight: past[0].weight, reps: past[0].reps,
+          notes: ["直近のこの店舗の記録は重量未入力のため、重量が分かる前回の記録を据え置きで参考にします"] }
+      : offStep ? { kind: "hold" as const, weight: past[0].weight, reps: past[0].reps,
+          notes: ["記録した重量を維持します。店舗の重量の刻みと合わないため、フォーム・メモで刻みを確認してください"] }
+      : decideNextLoad(def, past, step, profile);
+    notes.push("この店舗で実際に記録した重量を基準に調整します。他店舗の重量とは混ぜません");
     if (comeback && (next.kind === "increase_weight" || next.kind === "increase_reps")) {
       // 久しぶりの日は上げない。前回の重量・回数を基準に下げて再開する
       weight = past[0].weight;
@@ -543,9 +559,9 @@ export function buildPlannedExercise(
     // 別店舗の記録は参考値：同じ重量とは限らないので1段階軽めから
     weightReference = "other_store";
     const base = workingWeight(ref.exercise)!;
-    weight = def.loadType === "assist" ? roundToStep(base + step, step) : Math.max(step, roundToStep(base - step, step));
+    weight = def.loadType === "assist" ? roundToStep(base + step, step) : Math.min(base, Math.max(step, roundToStep(base - step, step)));
     reps = toPastSession(ref.exercise).reps;
-    notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、1段階軽めから）`);
+    notes.push(`${workoutStoreName(ref.workout, true)}の記録を参考（別店舗・別マシンのため同一負荷とは限らず、控えめな仮の重量）。最初のセットで調整し、実際に使った重量を記録してください。次回はこの店舗の実績を優先します`);
   } else if (pastEntry?.weight !== undefined && pastEntry.weight > 0) {
     // アプリでは初めてだが以前行っていた種目：その重量を参考に少し軽めから
     const base = pastEntry.weight;
@@ -562,7 +578,13 @@ export function buildPlannedExercise(
       notes.push(isNovice(prefs) ? "初回のため、フォームを優先して余裕を持って10回以上できる重量から始めましょう" : "初回のため軽めの重量で確認してから調整してください");
     }
   }
-  if (weight !== undefined) weight = roundToStep(weight * c.loadFactor, step);
+  // 据え置きの実績を、店舗の未設定/変更済みの刻みで勝手に丸めない。
+  if (weight !== undefined && c.loadFactor > 0 && c.loadFactor !== 1) {
+    const scaled = roundToStep(def.loadType === "assist" ? weight / c.loadFactor : weight * c.loadFactor, step);
+    weight = c.loadFactor < 1
+      ? def.loadType === "assist" ? Math.max(weight, scaled) : Math.min(weight, scaled)
+      : scaled;
+  }
 
   // 片手種目は左右差を考慮（弱い側に合わせる）
   if (def.unilateral && def.loadType === "weight") {
@@ -602,9 +624,14 @@ export function buildPlannedExercise(
     rationale: notes.join("。"),
   });
   if (ref) ex.previous = toPrevious(ref);
+  if (weighted && sameLoad && otherLoad) ex.otherStorePrevious = toPrevious(otherLoad);
   // 強い疲労のときはここに来ないが、中程度なら1セット目をさらに軽く
   if (sore.level === "moderate" && ex.sets[0]?.weight !== undefined) {
-    ex.sets[0] = { ...ex.sets[0], weight: Math.max(step, ex.sets[0].weight! - step) };
+    const first = ex.sets[0];
+    const ease = (w: number | undefined) => w === undefined ? undefined : def.loadType === "assist" ? w + step : Math.min(w, Math.max(step, w - step));
+    ex.sets[0] = { ...first, weight: ease(first.weight),
+      left: first.left ? { ...first.left, weight: ease(first.left.weight) } : undefined,
+      right: first.right ? { ...first.right, weight: ease(first.right.weight) } : undefined };
   }
   return ex;
 }
