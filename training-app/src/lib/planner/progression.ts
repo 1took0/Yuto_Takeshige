@@ -1,4 +1,4 @@
-import type { ExerciseDef, Goals, MenuPreferences, StoreEquipment, StoreId, WorkoutExercise } from "@/lib/types";
+import type { AiProgressionPolicy, ExerciseDef, Goals, MenuPreferences, StoreEquipment, StoreId, WorkoutExercise } from "@/lib/types";
 import { strengthFocused } from "@/lib/goals";
 import { sessionOutcome, workingWeight, type SessionOutcome } from "./history";
 
@@ -71,6 +71,32 @@ export interface ProgressionProfile {
   /** 何回続けて届かなければ下げるか */
   deloadAfter: number;
   deloadPct: number;
+  /** 検証済みの相談設定。重量・補助種目だけに適用する。 */
+  policy?: AiProgressionPolicy;
+  /** 固定回数も重量を上げる明示的な希望があるときだけ使う。 */
+  fixedReps?: number;
+}
+
+/** 古いバックアップ等で検証を経ず保存された設定から、不正な条件を使わない。 */
+export function validatedProgressionPolicy(value: unknown): AiProgressionPolicy | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const p = value as Record<string, unknown>;
+  const keys = ["requiredSuccesses", "minSessionsAtWeight", "maxIncreasePercent", "strategy", "repRange"];
+  if (!Object.keys(p).length || Object.keys(p).some((key) => !keys.includes(key))) return undefined;
+  const integerIn = (n: unknown, min: number, max: number) => typeof n === "number" && Number.isInteger(n) && n >= min && n <= max;
+  if (p.requiredSuccesses !== undefined && !integerIn(p.requiredSuccesses, 1, 5)) return undefined;
+  if (p.minSessionsAtWeight !== undefined && !integerIn(p.minSessionsAtWeight, 1, 8)) return undefined;
+  if (p.maxIncreasePercent !== undefined && (typeof p.maxIncreasePercent !== "number" || !Number.isFinite(p.maxIncreasePercent)
+    || p.maxIncreasePercent < 1 || p.maxIncreasePercent > 20)) return undefined;
+  if (p.strategy !== undefined && p.strategy !== "reps_first" && p.strategy !== "weight_first") return undefined;
+  if (p.repRange !== undefined) {
+    if (!p.repRange || typeof p.repRange !== "object" || Array.isArray(p.repRange)) return undefined;
+    const range = p.repRange as Record<string, unknown>;
+    if (Object.keys(range).some((key) => key !== "min" && key !== "max")
+      || !integerIn(range.min, 1, 20) || !integerIn(range.max, 1, 20) || (range.min as number) > (range.max as number)) return undefined;
+  }
+  if (!keys.some((key) => p[key] !== undefined)) return undefined;
+  return value as AiProgressionPolicy;
 }
 
 const MAX_JUMP: Record<NonNullable<MenuPreferences["experience"]>, Record<LiftClass, number>> = {
@@ -103,14 +129,18 @@ export function progressionProfile(def: ExerciseDef, prefs: MenuPreferences = {}
   }
   if (prefs.intensity === "light") required += 1;
   if (prefs.progressionMode === "cautious") required = Math.max(2, required);
+  const policy = def.loadType === "weight" || def.loadType === "assist" ? validatedProgressionPolicy(prefs.progression) : undefined;
+  if (policy?.repRange) repRange = [policy.repRange.min, policy.repRange.max];
   return {
     repRange,
     maxJump,
-    requiredSuccesses: Math.min(3, required),
-    doubleProgression: exp === "intermediate" || exp === "advanced" || prefs.intensity === "light" || prefs.progressionMode === "cautious",
+    requiredSuccesses: Math.max(Math.min(3, required), policy?.requiredSuccesses ?? 1),
+    doubleProgression: policy?.strategy ? policy.strategy === "reps_first"
+      : exp === "intermediate" || exp === "advanced" || prefs.intensity === "light" || prefs.progressionMode === "cautious",
     deloadAfter: 2,
     deloadPct: 0.1,
     ...(prefs.progressionMode === "hold" ? { hold: true } : {}),
+    ...(policy ? { policy } : {}),
   };
 }
 
@@ -147,6 +177,10 @@ export interface PastSession {
   /** その回のメニュー作成時の目標回数 */
   reps?: number;
   outcome: SessionOutcome;
+  /** この実績重量以上の全セット（左右両側）の実回数の最小値。相談設定時だけ使う。 */
+  completedReps?: number;
+  /** 全予定セットの plannedReps が同じ値のときだけ、その値を残す。 */
+  fixedTargetReps?: number;
 }
 
 export function toPastSession(e: WorkoutExercise): PastSession {
@@ -175,7 +209,9 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   const last = sessions[0];
   if (!last || last.weight === undefined) return { kind: "start", notes: [] };
   const w0 = last.weight;
-  const reps0 = profile.hold ? last.reps ?? def.defaultReps ?? lo : clampReps(last.reps ?? def.defaultReps ?? lo);
+  // 相談で回数の下限を変更しても、未報告・据え置きの実績を新しい下限の達成とは扱わない。
+  const reps0 = profile.hold ? last.reps ?? def.defaultReps ?? lo
+    : profile.policy ? Math.min(hi, last.reps ?? def.defaultReps ?? lo) : clampReps(last.reps ?? def.defaultReps ?? lo);
   const assist = def.loadType === "assist";
   const sameWeight = (s: PastSession) => s.weight === w0;
   const streak = (pred: (s: PastSession) => boolean) => {
@@ -209,6 +245,7 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   if (successes < profile.requiredSuccesses) {
     return { kind: "hold", weight: w0, reps: reps0, notes: [`あと${profile.requiredSuccesses - successes}回続けて全セット達成できたら重量アップ`] };
   }
+  if (profile.policy) return decideConfiguredLoad(def, sessions, step, profile, reps0);
   // ここから前に進める
   if (assist) {
     if (w0 - step <= 0) return { kind: "increase_reps", weight: w0, reps: Math.min(hi, reps0 + 1), notes: ["補助なしに近いため、回数を+1"] };
@@ -255,6 +292,69 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   return { kind: "increase_weight", weight: w1, reps, notes };
 }
 
+/** 共通の未達成・未報告・未完了・停止判定を通過した、相談設定のある重量種目。 */
+function decideConfiguredLoad(def: ExerciseDef, sessions: PastSession[], step: number, profile: ProgressionProfile, reps0: number): NextLoad {
+  const policy = profile.policy!;
+  const [lo, hi] = profile.repRange;
+  const w0 = sessions[0].weight!;
+  const fixed = profile.fixedReps;
+  const hold = (note: string): NextLoad => ({ kind: "hold", weight: w0, reps: fixed ?? reps0, notes: [note] });
+  const addReps = (note: string): NextLoad => fixed === undefined && reps0 < hi
+    ? { kind: "increase_reps", weight: w0, reps: reps0 + 1, notes: [note] } : hold(note);
+  const streak = (pred: (s: PastSession) => boolean) => {
+    let count = 0;
+    for (const session of sessions) {
+      if (session.weight !== w0 || !pred(session)) break;
+      count++;
+    }
+    return count;
+  };
+  // 滞在回数は成功回数ではない。目標未達でも、全セットと実回数を報告した同重量の回は数える。
+  const atWeight = streak((s) => s.outcome.allDone && !s.outcome.unreported);
+  const minimum = policy.minSessionsAtWeight ?? 1;
+  const increaseWeight = (next: NextLoad): NextLoad => atWeight < minimum
+    ? hold(`この重量で全セット・実回数を記録した回があと${minimum - atWeight}回必要なため重量は据え置きます`) : next;
+
+  if (fixed !== undefined) {
+    const matched = streak((s) => s.outcome.success && s.fixedTargetReps === fixed);
+    if (matched < profile.requiredSuccesses) return hold(`相談で決めた${fixed}回を全セットの予定にして、あと${profile.requiredSuccesses - matched}回続けて実回数を達成してから重量を検討します`);
+  } else if (reps0 < lo) {
+    return addReps(`新しく決めた下限（${lo}回）を達成済みとはみなさず、前回の目標から回数を+1します`);
+  }
+
+  // 1段階の幅そのものを変えない。上限超過を反復成功や回数上限で迂回しない。
+  const jump = step / w0;
+  if (policy.maxIncreasePercent !== undefined && jump > policy.maxIncreasePercent / 100 + 1e-9) {
+    return addReps(`店舗の刻み（${step}kg）は今の重量の${Math.round(jump * 100)}%で、相談した上限${policy.maxIncreasePercent}%を超えるため重量は据え置きます`);
+  }
+  if (fixed === undefined && profile.doubleProgression && reps0 < hi) {
+    return addReps(`前回は全セット達成 → 回数を+1（${hi}回に達してから店舗の刻みで重量を検討）`);
+  }
+  if (def.loadType === "assist") {
+    // 補助量は実負荷ではないので、Epley 式を補助kgへ適用しない。
+    if (w0 - step <= 0) return addReps("補助を1段階減らすと0kg以下になるため、補助量は維持します");
+    return increaseWeight({ kind: "increase_weight", weight: Math.round((w0 - step) * 100) / 100, reps: fixed ?? reps0,
+      notes: [`相談した達成条件を満たしたため、補助を -${step}kg（補助量から実負荷の余裕は推定できないため、最初のセットで確認）`] });
+  }
+  const w1 = Math.round((w0 + step) * 100) / 100;
+  const reported = sessions[0].completedReps;
+  const performance = reported ?? reps0;
+  const est = repsAtWeightExact(w0, fixed === undefined ? performance : reported ?? 0, w1);
+  const feasible = Math.floor(est + 1e-9) - SET_FATIGUE_REPS;
+  if (fixed !== undefined) {
+    if (reported === undefined || feasible < fixed) return hold(`${fixed}回固定で1段階重くする余裕を実回数から確認できないため据え置きます。回数に余裕があった日は実回数を記録するか、固定回数を外して範囲で進めてください`);
+    return increaseWeight({ kind: "increase_weight", weight: w1, reps: fixed, notes: [`${fixed}回の固定目標の連続達成と実回数の余裕を確認 → +${step}kg`] });
+  }
+  if (jump > profile.maxJump && reps0 < hi) {
+    return addReps(`店舗の刻みが経験・年齢に対して大きいため、回数を+1してから重量を検討します`);
+  }
+  // 設定の回数上限を超えて増やさない。重量を上げるには従来の疲労余裕を含む下限を満たす。
+  if (feasible < lo) return addReps(`次の重量（${w1}kg）では疲労の余裕を含め${lo}回を見込みにくいため、重量は据え置きます`);
+  const reps = !profile.doubleProgression && jump <= profile.maxJump
+    ? Math.max(lo, Math.min(reps0, Math.round(est) - 1)) : Math.min(hi, feasible);
+  return increaseWeight({ kind: "increase_weight", weight: w1, reps, notes: [`相談した達成条件を満たし、次の重量の回数も見込めるため +${step}kg`] });
+}
+
 /** 刻みが大きすぎても、上限の回数をこの回数続けて達成したら次の重量に挑戦する */
 const TOP_STREAK_TO_TRY = 3;
 /** 新しい重量で見込む余裕の回数（セットを重ねる疲れ・日による調子の差） */
@@ -266,7 +366,7 @@ const MAX_REPS = 20;
 /** 重量 w0 で r0 回できた人が、重量 w1 でできる回数の見込み（Epley 式） */
 /** 目標回数として出してよい範囲（刻みが大きいときは上限を少し超えてよい） */
 export function allowedReps(profile: ProgressionProfile): [number, number] {
-  return [profile.repRange[0], Math.min(MAX_REPS, profile.repRange[1] + EXTRA_REPS)];
+  return [profile.repRange[0], profile.policy ? profile.repRange[1] : Math.min(MAX_REPS, profile.repRange[1] + EXTRA_REPS)];
 }
 
 export function repsAtWeight(w0: number, r0: number, w1: number): number {

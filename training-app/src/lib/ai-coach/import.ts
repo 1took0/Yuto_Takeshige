@@ -13,6 +13,15 @@ const rule = z.object({
   restSec: z.number().int().min(15).max(300).optional(),
 }).strict().refine((r) => Object.keys(r).length > 1, "種目別設定が空です");
 
+const progression = z.object({
+  requiredSuccesses: z.number().int().min(1).max(5).optional(),
+  minSessionsAtWeight: z.number().int().min(1).max(8).optional(),
+  maxIncreasePercent: z.number().min(1).max(20).optional(),
+  strategy: z.enum(["reps_first", "weight_first"]).optional(),
+  repRange: z.object({ min: z.number().int().min(1).max(20), max: z.number().int().min(1).max(20) }).strict()
+    .refine((v) => v.min <= v.max, "回数の下限は上限以下にしてください").optional(),
+}).strict().refine((v) => Object.keys(v).length > 0, "重量の進め方が空です");
+
 export const adjustmentSchema = z.object({
   format: z.literal("training-coach-policy"), version: z.literal(1), summary: z.string().trim().min(1).max(1500),
   preferences: z.object({
@@ -22,6 +31,7 @@ export const adjustmentSchema = z.object({
     cardio: z.enum(["none", "walk", "run"]).optional(), warmupBike: z.enum(["yes", "no"]).optional(),
     lessRegions: regions.optional(), dislikedExerciseIds: ids.optional(),
     progressionMode: z.enum(["standard", "cautious", "hold"]).optional(),
+    progression: progression.nullable().optional(),
     exerciseOrder: ids.optional(), exerciseRules: z.array(rule).max(40)
       .refine((a) => new Set(a.map((r) => r.exerciseId)).size === a.length, "種目別設定が重複しています").optional(),
   }).strict().optional(),
@@ -70,7 +80,9 @@ export const policyKey = (s: Settings) => JSON.stringify(policySnapshot(s));
 export function adjustmentPatch(s: Settings, a: AiAdjustment): AiCoachSnapshot {
   const next = policySnapshot(s);
   if (a.preferences) {
-    next.preferences = { ...s.preferences, ...a.preferences };
+    const { progression, ...other } = a.preferences;
+    next.preferences = { ...s.preferences, ...other,
+      ...(progression !== undefined ? { progression: progression ?? undefined } : {}) };
     if (a.preferences.cardio !== undefined) next.lastCardio = a.preferences.cardio;
     if (a.preferences.timeLimitMin !== undefined) next.lastTimeLimitMin = a.preferences.timeLimitMin;
   }
@@ -95,6 +107,14 @@ export function describeAdjustment(s: Settings, a: AiAdjustment, exercises: read
     if (key === "equipmentStyle") return EQUIPMENT_STYLE_LABEL[v as keyof typeof EQUIPMENT_STYLE_LABEL];
     if (key === "cardio") return CARDIO_CHOICE_LABEL[v as keyof typeof CARDIO_CHOICE_LABEL];
     if (key === "progressionMode") return PROGRESSION_LABEL[v as keyof typeof PROGRESSION_LABEL];
+    if (key === "progression") {
+      const p = v as NonNullable<NonNullable<AiAdjustment["preferences"]>["progression"]>;
+      return [p.requiredSuccesses === undefined ? "" : `全セットを${p.requiredSuccesses}回連続達成（安全側の既定条件が優先）`,
+        p.minSessionsAtWeight === undefined ? "" : `同じ重量で最低${p.minSessionsAtWeight}回実施`,
+        p.maxIncreasePercent === undefined ? "" : `1回の重量変更は最大${p.maxIncreasePercent}%`,
+        p.strategy === undefined ? "" : p.strategy === "reps_first" ? "回数を増やしてから重量を上げる" : "条件達成後は重量を先に上げる",
+        p.repRange === undefined ? "" : `目標${p.repRange.min}〜${p.repRange.max}回`].filter(Boolean).join("・");
+    }
     if (key === "timeLimitMin") return v === null ? "制限なし" : `${v}分`;
     if (key === "warmupBike") return v === "yes" ? "入れる" : "入れない";
     if (key === "objectives") return list((v as Array<keyof typeof OBJECTIVE_LABEL>).map((x) => OBJECTIVE_LABEL[x]));
@@ -106,7 +126,7 @@ export function describeAdjustment(s: Settings, a: AiAdjustment, exercises: read
   return (["preferences", "goals"] as const).flatMap((section) => Object.keys(a[section] ?? {}).map((key) => {
     const before = (s[section] as Record<string, unknown> | undefined)?.[key];
     const after = (next[section] as Record<string, unknown> | undefined)?.[key];
-    return `${labels[key]}：${format(key, before)} → ${format(key, after)}`;
+    return `${key === "progression" ? "重量を上げる条件・ペース" : labels[key]}：${format(key, before)} → ${format(key, after)}`;
   }));
 }
 
@@ -117,7 +137,9 @@ export const RETURN_CONTRACT = [
   "使えるキーは次だけです。省略したキーは現在の設定を保持。配列を指定するとその項目の一覧を全置換（追加分だけにしない）。[]はその希望を解除。summaryは会話の引継ぎ用の説明であり、文章だけでは設定に反映されません。未対応の希望をsummaryに書くだけで実装済みと説明しないでください。",
   "preferences: intensity=light/normal/hard、equipmentStyle=machine/balanced/dumbbell、timeLimitMin=30/45/60/90/120/null（制限なし）、cardio=none/walk/run（主運動のトレッドミル）、warmupBike=yes/no（バイクのウォームアップ）、lessRegions=部位ID配列、dislikedExerciseIds=避ける種目ID配列。",
   "preferences.progressionMode=standard（既存の達成判定）/cautious（標準以上に慎重に、連続達成を確認）/hold（自動増量・回数増加を止める。未達成・疲労による軽減は継続）。店舗の重量刻み・実績を優先し、固定kgや店舗間換算、無条件の毎週増量は取り込めません。",
-  "preferences.exerciseOrder=種目ID配列。採用された筋トレ種目の指定分をこの順で先に並べます（採用を保証する指定ではありません）。preferences.exerciseRules=[{exerciseId,sets?,reps?,seconds?,restSec?}]。整数でsets=1〜6、reps=1〜30、seconds=5〜180（time種目のみ）、restSec=15〜300。repsとsecondsは併用不可。回数は固定の希望値で、既存の回数目標から自動増量は行いません。疲労・時間等でセット数は減る場合があります。",
+  "preferences.progression={requiredSuccesses?,minSessionsAtWeight?,maxIncreasePercent?,strategy?,repRange?}で重量・補助重量の条件とペースを具体的に決められます。requiredSuccesses=1〜5（全セットの連続達成回数。経験・年齢等の安全側の既定回数を下回れません）、minSessionsAtWeight=1〜8（同じ店舗・重量で全セット実績を報告して実施する最低回数）、maxIncreasePercent=1〜20（1回の負荷変更率の厳密な上限%）。実際の上げ幅は店舗の器具の1刻みです。上限を超える刻みでは増量せず、刻み自体を変更しません。",
+  "progression.strategy=reps_first（回数を伸ばしてから重量）/weight_first（達成条件を満たしてから重量を優先）、repRange={min,max}（それぞれ整数1〜20、min<=max）。重量増加には実績・実行可能性の判定が必要です。補助重量は減らす方向が負荷増加。progressionはオブジェクト全体を置換するため、維持したい項目も含めます。nullで追加条件を解除し、既定に戻します。省略は保持。空の{}は無効。holdが最優先です。日数・曜日・RPEによる増量条件は未対応です。",
+  "preferences.exerciseOrder=種目ID配列。採用された筋トレ種目の指定分をこの順で先に並べます（採用を保証する指定ではありません）。preferences.exerciseRules=[{exerciseId,sets?,reps?,seconds?,restSec?}]。整数でsets=1〜6、reps=1〜30、seconds=5〜180（time種目のみ）、restSec=15〜300。repsとsecondsは併用不可。回数は固定値で原則自動増量しません。例外はprogression.strategy=weight_firstを明示し、同じ固定目標の実績・達成条件が揃った場合のみ。通常重量は、増量後も固定回数を満たせる余裕を実回数から確認できないと据え置きます。回数を伸ばしながら進めるなら固定repsを外してrepRangeを使ってください。疲労・時間等でセット数は減る場合があります。",
   "goals: objectives=[strength/hypertrophy/fatloss/lowback/grip/running]（1個以上）、priorityRegions=部位ID配列、favoriteExerciseIds=定期的に入れたい種目ID配列。部位IDはchest/back/legs/glutes/shoulders/arms/abs/lower_back。種目IDは下の登録種目一覧を使い、名前から新しいIDを作らないでください。",
   "提案する種目と除外を矛盾させないでください。負荷kg、健康情報、プロフィール、共有設定、実施記録は返却JSONに含めません。週ごとの分割・周期化、曜日固定、バイクを主運動にする計画、有酸素の細かな区間や配置は現在の自動取り込みの対象外です。これらの希望は質問して対応可能な方針に落とすか、手動調整が必要と説明してください。",
   "当日の痛み・疲労・器具の有無・時間制限は取り込んだ方針より優先します。過去や進行中の記録は変更せず、利用者がアプリで変更内容を確認して保存した後の自動作成に適用します。",
