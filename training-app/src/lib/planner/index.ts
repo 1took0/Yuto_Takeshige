@@ -9,7 +9,7 @@ import { newId } from "@/lib/id";
 import { buildExercise } from "@/lib/workout/edit";
 import { detectComeback, type Comeback } from "./comeback";
 import { cardioHabits, equipmentGroupOf, manualHabits, skipsCardio, sortByHabits, trainingHabits } from "./habits";
-import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession } from "./progression";
+import { allowedReps, decideNextLoad, estimateStartWeight, progressionProfile, roundToStep, stepFor, toPastSession, validatedProgressionPolicy } from "./progression";
 import { bikeWarmup, buildTreadmillPlan, decideTreadmillMode, nextRunTarget, planTotalMin, treadmillEntry } from "./cardio";
 import { daysSince, doneInLastN, sortByDateDesc, exerciseHistory, lastTrainedByMuscle, runHistory, toPrevious, usedAtStore, workingSeconds, workingWeight, type ExerciseHistoryEntry, learnedSets } from "./history";
 
@@ -118,6 +118,13 @@ export function exerciseMinutes(def: ExerciseDef, sets: number, rule?: AiExercis
 
 function exerciseRule(def: ExerciseDef, prefs: MenuPreferences): AiExerciseRule | undefined {
   return prefs.exerciseRules?.find((rule) => rule.exerciseId === def.id);
+}
+
+/** 相談した回数範囲では上限で所要時間を見積もり、進行しても時間枠からはみ出させない。 */
+function budgetRule(def: ExerciseDef, prefs: MenuPreferences): AiExerciseRule | undefined {
+  const rule = exerciseRule(def, prefs);
+  const range = (def.loadType === "weight" || def.loadType === "assist") ? validatedProgressionPolicy(prefs.progression)?.repRange : undefined;
+  return range && rule?.reps === undefined ? { ...rule, exerciseId: def.id, reps: range.max } : rule;
 }
 
 interface Availability {
@@ -393,7 +400,7 @@ export function generatePlan(input: PlanInput): PlanResult {
     if (focusRegions && !c.slot.regions.some((r) => focusRegions.includes(r)) && remaining < budget.strengthMin * 0.35) continue;
     // セット数は本人の記録（直近3回の中央値）があればそれを基準に、無ければ標準値
     const sets = candidateSets(c, history, prefs);
-    const rule = exerciseRule(c.def, prefs);
+    const rule = budgetRule(c.def, prefs);
     const mins = exerciseMinutes(c.def, sets, rule);
     if (mins > remaining) {
       // 2セットなら入るか試す
@@ -469,7 +476,7 @@ export function generatePlan(input: PlanInput): PlanResult {
 
   const strengthMin = exercises.reduce((a, e) => {
     const def = getExercise(e.exerciseId)!;
-    return a + exerciseMinutes(def, e.sets.length, exerciseRule(def, prefs));
+    return a + exerciseMinutes(def, e.sets.length, budgetRule(def, prefs));
   }, 0);
   summary.unshift(`${storeName(store, true)}・${budget.unlimited ? "時間制限なし" : `${budget.totalMin}分`}：筋トレ${exercises.length}種目（約${Math.round(strengthMin)}分）${budget.warmupMin ? `＋バイク${budget.warmupMin}分` : ""}`);
   if (noBike) summary.push(`${noBikeReason}、ウォームアップのバイクは入れていません`);
@@ -567,7 +574,7 @@ export function buildPlannedExercise(
     // 同じ店舗の記録から、体格・経験・種目に合わせたペースで進める
     weightReference = "same_store";
     const past = same.slice(same.indexOf(sameLoad)).map((h) => {
-      const session = toPastSession(h.exercise);
+      const session = profile.policy ? configuredSession(h.exercise, def) : toPastSession(h.exercise);
       const incompleteLoad = h.exercise.sets.some((s) => s.completed && !s.excluded
         && (workingWeight({ ...h.exercise, sets: [s] }) === undefined
           || ((s.left || s.right) && (s.left?.actualReps === undefined || s.right?.actualReps === undefined))));
@@ -579,9 +586,10 @@ export function buildPlannedExercise(
           notes: ["直近のこの店舗の記録は重量未入力のため、重量が分かる前回の記録を据え置きで参考にします"] }
       : offStep ? { kind: "hold" as const, weight: past[0].weight, reps: past[0].reps,
           notes: ["記録した重量を維持します。店舗の重量の刻みと合わないため、フォーム・メモで刻みを確認してください"] }
-      // 明示的な回数は固定の目標。以前の別の回数の達成だけで重量を上げない。
+      // 固定回数は通常据え置き。重量優先を明示した場合も、同じ固定目標の実績を確認する。
       // 未達成による軽減は有効なままにして、疲労・復帰の軽減はこの後で適用する。
-      : decideNextLoad(def, past, step, rule?.reps === undefined ? profile : { ...profile, hold: true });
+      : decideNextLoad(def, past, step, rule?.reps === undefined ? profile
+        : profile.policy?.strategy === "weight_first" ? { ...profile, fixedReps: rule.reps } : { ...profile, hold: true });
     notes.push("この店舗で実際に記録した重量を基準に調整します。他店舗の重量とは混ぜません");
     if (comeback && (next.kind === "increase_weight" || next.kind === "increase_reps")) {
       // 久しぶりの日は上げない。前回の重量・回数を基準に下げて再開する
@@ -637,7 +645,9 @@ export function buildPlannedExercise(
   // 回数：記録が無いときは目的に合わせた回数から
   if (def.loadType === "weight" || def.loadType === "assist") {
     if (reps === undefined) {
-      if (strengthFocused(goals) && def.defaultReps && def.priority >= 95) {
+      if (profile.policy?.repRange) {
+        reps = Math.min(profile.repRange[1], Math.max(lo, def.defaultReps ?? lo));
+      } else if (strengthFocused(goals) && def.defaultReps && def.priority >= 95) {
         reps = 8;
         notes.push("筋力向上重視のため8回前後の重量で");
       } else if (prefs.intensity === "light" && def.defaultReps) {
@@ -645,13 +655,14 @@ export function buildPlannedExercise(
         notes.push("軽めの希望のため、重量は控えめに回数を多めに");
       }
     } else if (rule?.reps === undefined && prefs.progressionMode !== "hold") {
-      reps = Math.min(allowedReps(profile)[1], Math.max(lo, reps));
+      reps = Math.min(allowedReps(profile)[1], profile.policy ? reps : Math.max(lo, reps));
       if (strengthFocused(goals) && def.priority >= 95 && reps <= 8) notes.push("筋力向上重視のため8回前後の重量で");
     }
   }
   if (rule?.reps !== undefined && def.loadType !== "time") {
     reps = rule.reps;
-    notes.push(`相談で決めた目標の${reps}回を使います${weighted ? "。回数の希望だけでは重量を増やしません" : ""}`);
+    notes.push(`相談で決めた目標の${reps}回を使います${weighted
+      ? profile.policy?.strategy === "weight_first" ? "。固定目標の達成と増量条件を確認して重量を調整します" : "。回数の希望だけでは重量を増やしません" : ""}`);
   }
   if (rule?.seconds !== undefined && def.loadType === "time") seconds = rule.seconds;
   if (prefs.intensity === "hard" && def.loadType === "weight") notes.push("最終セットは限界近くまで");
@@ -684,6 +695,26 @@ export function buildPlannedExercise(
 function allSecondsHeld(ref: ExerciseHistoryEntry): boolean {
   const sets = ref.exercise.sets.filter((s) => s.completed && !s.excluded);
   return sets.length > 0 && sets.every((s) => typeof s.actualSeconds === "number" && typeof s.seconds === "number" && s.actualSeconds >= s.seconds);
+}
+
+/** 相談設定の増量判断には、最後のセットの目標を全セットの実績として流用しない。 */
+function configuredSession(exercise: WorkoutExercise, def: ExerciseDef) {
+  const session = toPastSession(exercise);
+  const done = exercise.sets.filter((s) => s.completed && !s.excluded);
+  const working = done.filter((s) => {
+    const weight = workingWeight({ ...exercise, sets: [s] });
+    return weight !== undefined && session.weight !== undefined
+      && (def.loadType === "assist" ? weight <= session.weight : weight >= session.weight);
+  });
+  const actuals = working.flatMap((s) => s.left || s.right ? [s.left?.actualReps, s.right?.actualReps] : [s.actualReps]);
+  const reported = actuals.length > 0 && actuals.every((r): r is number => typeof r === "number" && Number.isFinite(r) && r >= 0);
+  const target = exercise.sets[0]?.plannedReps;
+  return {
+    ...session,
+    completedReps: reported ? Math.min(...actuals as number[]) : undefined,
+    fixedTargetReps: typeof target === "number" && Number.isFinite(target) && exercise.sets.every((s) => s.plannedReps === target) ? target : undefined,
+    ...(!reported ? { outcome: { ...session.outcome, success: false, unreported: true } } : {}),
+  };
 }
 
 /** 利用可能な種目一覧（UIの「種目を追加」用） */

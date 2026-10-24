@@ -386,6 +386,8 @@ export interface MenuPreferences {
   exerciseOrder?: string[];
   /** 中長期の進め方。hold は自動増量を止め、cautious は標準より慎重に進める。 */
   progressionMode?: "standard" | "cautious" | "hold";
+  /** AIとの会話で決めた重量の達成条件・ペース。省略は従来の自動設定。 */
+  progression?: AiProgressionPolicy;
   /** 初回ヒアリングに答えた日時（未回答なら初回トレーニング時に質問する） */
   answeredAt?: string;
   experience?: Experience;
@@ -410,6 +412,14 @@ export interface MenuPreferences {
   /** これまでに行っていたトレーニング種目（ヒアリングの2ページ目。メニュー作成の参考にする） */
   pastExercises?: PastExercise[];
   notes?: PreferenceNote[];
+}
+
+export interface AiProgressionPolicy {
+  requiredSuccesses?: number;
+  minSessionsAtWeight?: number;
+  maxIncreasePercent?: number;
+  strategy?: "reps_first" | "weight_first";
+  repRange?: { min: number; max: number };
 }
 
 export interface AiExerciseRule {

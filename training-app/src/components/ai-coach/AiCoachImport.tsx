@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { getSettings } from "@/lib/db/repo";
 import { allExercises } from "@/lib/catalog/exercises";
@@ -43,7 +42,7 @@ export function AiCoachImport({ onApplied }: { onApplied: () => void }) {
     finally { setBusy(false); }
   };
   return <section className="card space-y-3 p-3" aria-label="AIで決めた方針を取り込む">
-    <h2 className="font-semibold">4. 会話で決めた方針をアプリに戻す</h2>
+    <h2 className="font-semibold">相談後の結果を反映する</h2>
     <p className="text-sm">AIとの会話で納得できたら「アプリに反映する方針を出して」と伝え、返されたJSONのコードブロックを貼り付けてください。</p>
     <fieldset disabled={busy} className="space-y-3">
       <label className="block text-sm">AIからの方針の返却文
@@ -69,6 +68,5 @@ export function AiCoachImport({ onApplied }: { onApplied: () => void }) {
     {error && <p role="alert" className="rounded-xl bg-warn-soft p-3 text-sm">{error}</p>}
     {message && <p role="status" className="rounded-xl bg-card-2 p-3 text-sm">{message}</p>}
     <p className="text-xs text-muted">当日の痛み・疲労・器具・時間に応じた調整を優先します。過去の実績や進行中のメニューは書き換えません。固定重量や曜日別の分割、バイクの主運動化など、返却形式にない指定は取り込めません。</p>
-    <Link className="btn-secondary w-full" href="/start">方針を使って次のメニューを作る</Link>
   </section>;
 }

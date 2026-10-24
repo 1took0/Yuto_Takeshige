@@ -17,6 +17,10 @@ describe("AIの方針の読み取り", () => {
   });
   it.each([
     { intensity: "maximum" }, { timeLimitMin: 31 }, { profile: {} },
+    { progression: {} }, { progression: { requiredSuccesses: 0 } }, { progression: { requiredSuccesses: 6 } },
+    { progression: { minSessionsAtWeight: 9 } }, { progression: { maxIncreasePercent: 21 } },
+    { progression: { repRange: { min: 12, max: 8 } } }, { progression: { repRange: { min: 1, max: 21 } } },
+    { progression: { strategy: "weekly" } }, { progression: { requiredSuccesses: "3" } },
     { exerciseRules: [{ exerciseId: "chest_press", sets: 7 }] },
     { exerciseRules: [{ exerciseId: "chest_press", reps: "10" }] },
     { exerciseRules: [{ exerciseId: "plank", reps: 10 }] },
@@ -44,6 +48,19 @@ describe("AIの方針の読み取り", () => {
 });
 
 describe("方針の保存と取り消し", () => {
+  it("重量条件は厳格に検証し、全体置換・省略保持・null解除と取り消しができる", async () => {
+    const initial = await updateSettings({ preferences: { progression: { requiredSuccesses: 2, maxIncreasePercent: 5 } } });
+    const text = payload({ progression: { requiredSuccesses: 5, minSessionsAtWeight: 8, maxIncreasePercent: 1, strategy: "reps_first", repRange: { min: 1, max: 20 } } });
+    const saved = await applyAiPolicy(text, reviewKey(initial));
+    expect(saved.preferences?.progression?.minSessionsAtWeight).toBe(8);
+    const replaced = await applyAiPolicy(payload({ progression: { requiredSuccesses: 3 } }), reviewKey(saved));
+    expect(replaced.preferences?.progression).toEqual({ requiredSuccesses: 3 });
+    const retained = await applyAiPolicy(payload({ cardio: "none" }), reviewKey(replaced));
+    expect(retained.preferences?.progression).toEqual({ requiredSuccesses: 3 });
+    const cleared = await applyAiPolicy(payload({ progression: null }), reviewKey(retained));
+    expect(cleared.preferences?.progression).toBeUndefined();
+    expect((await undoAiPolicy(cleared.aiCoachImport!.appliedAt)).preferences?.progression).toEqual({ requiredSuccesses: 3 });
+  });
   it("明示的な保存まで変更せず、実績・器具・プロフィールを保持して再読込と取り消しができる", async () => {
     const initial = await updateSettings({ preferences: { chronicPain: "膝", cardio: "none" }, profile: { userId: "u", displayName: "本人", shareToken: "secret", createdAt: "now" } });
     await saveWorkout({ id: "active", status: "active", source: "app", storeId: "ichijoji", trainingDate: "2026-10-25", createdAt: "now", updatedAt: "now", startedAt: "now", exercises: [], cardio: [] });

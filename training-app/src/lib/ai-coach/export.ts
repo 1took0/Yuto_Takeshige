@@ -14,6 +14,7 @@ export interface AiCoachOptions {
   includeHealth: boolean;
   includeNotes: boolean;
   includeStoreNames: boolean;
+  referenceReason?: string;
 }
 
 export interface AiCoachInput {
@@ -120,13 +121,13 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
     });
   }
   const data = {
-    相談の対象: { 方針: "次回以降に継続して使う中長期のメニュー作成方針", 記録の基準日: o.trainingDate, 主に参考にする店舗: selectedStore },
+    相談の対象: { 方針: "次回以降に継続して使う中長期のメニュー作成方針", 記録の基準日: o.trainingDate, 主に参考にする店舗: selectedStore, 店舗の選択理由: o.referenceReason },
     本人の相談と理想: o.request.trim() || "私の希望と実績に合う中長期のメニュー作成方針を会話で決めたい。足りない情報は質問してください。",
     現在の取り込み対象設定: {
       preferences: { intensity: p?.intensity, equipmentStyle: p?.equipmentStyle, timeLimitMin: p?.timeLimitMin,
         cardio: p?.cardio, warmupBike: p?.warmupBike, lessRegions: p?.lessRegions ?? [],
         dislikedExerciseIds: p?.dislikedExerciseIds ?? [], exerciseOrder: p?.exerciseOrder ?? [],
-        exerciseRules: p?.exerciseRules ?? [], progressionMode: p?.progressionMode ?? "standard" },
+        exerciseRules: p?.exerciseRules ?? [], progressionMode: p?.progressionMode ?? "standard", progression: p?.progression ?? null },
       goals: { objectives: s.goals?.objectives, priorityRegions: s.goals?.priorityRegions ?? [], favoriteExerciseIds: s.goals?.favoriteExerciseIds ?? [] },
       設定画面で別途除外している種目ID: s.excludedExerciseIds,
     },
@@ -180,6 +181,9 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
     "- 過去の記録や進行中のメニューを変更しません。取り込み後に新しく自動作成するメニューに方針を反映します。",
     "",
     "## 欲しい回答",
+    "アプリでは希望の質問をしていません。このチャットで、理想の体づくり・続けられる頻度と時間・経験・好き/避けたい種目と順番・セット数と回数・バイク/トレッドミルの有無を少しずつ質問してください。既存設定は過去の答えなので、今の希望と合うか確認してください。",
+    "重量についても、何回連続で全セット達成したら上げるか、同じ重量で何回練習してから上げたいか、1回の上げ幅の上限、先に回数を増やすか重量を増やすか、目標回数の範囲を会話で相談してください。本人が分からなければ選択肢と意味を説明し、アプリが対応する項目だけ合意して返してください。",
+    "参考店舗と履歴は自動選択です。今後主に使う店舗・器具が合っているか会話で確認し、仮プリセットや過去の利用頻度を本人の確定した希望と扱わないでください。省略された健康情報・必要な痛みや制約はこのチャットで本人に確認してください。",
     "1. 足りない情報の確認（十分なら省略）。",
     "2. 継続する目標・種目の選び方・順番・セット数・回数・休憩・重量の進め方・有酸素の方針を提案し、理由と優先順位を説明。",
     "3. 私の回答を受けて調整し、合意前にアプリへ反映する結果を確定しない。今日だけの体調と継続する好みを混同しない。",
