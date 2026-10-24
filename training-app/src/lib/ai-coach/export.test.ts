@@ -36,6 +36,23 @@ function data(input: AiCoachInput) {
 }
 
 describe("AI相談の書き出し", () => {
+  it("店舗別の重量を混ぜず、選択範囲内の最新の完了セットだけをまとめる", () => {
+    const input = fixture();
+    const a = workout("2026-10-20", "gym-a");
+    const b = workout("2026-10-21", "gym-b");
+    b.exercises[0].sets[0].weight = 40;
+    const newer = workout("2026-10-22", "gym-a");
+    newer.exercises[0].sets = [{ id: "unreported", completed: true, excluded: false, reps: 12 },
+      { id: "excluded", completed: true, excluded: true, weight: 999 },
+      { id: "planned", completed: false, excluded: false, weight: 999 }];
+    input.workouts = [a, b, newer];
+    const rows = data(input).店舗別の重量記録.記録;
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row: { 店舗: string }) => row.店舗 === "店舗1")).toMatchObject({ 日付: "2026-10-20", セット: [{ 重量kg: 10 }, { 重量kg: 0 }] });
+    expect(rows.find((row: { 店舗: string }) => row.店舗 === "店舗2").セット[0].重量kg).toBe(40);
+    expect(JSON.stringify(rows)).not.toContain("999");
+    expect(buildAiCoachPrompt(input).text).toContain("他店舗の基準を上書きしない");
+  });
   it("初期状態ではプロフィール・ID・保存済み健康情報・自由メモを出力しない", () => {
     const input = fixture();
     const text = buildAiCoachPrompt(input).text;

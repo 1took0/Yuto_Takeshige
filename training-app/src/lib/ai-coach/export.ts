@@ -113,6 +113,17 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
     };
   };
   const equipmentRows = input.equipment.filter((row) => row.storeId === o.storeId);
+  // 選択した履歴の範囲内で、店舗×種目ごとの最新の実施記録を分ける。
+  const storeLoads = new Map<string, { 店舗: string; 種目: string; 日付: string; セット: ReturnType<typeof setData>[] }>();
+  for (const w of history) for (const e of w.exercises) {
+    const key = JSON.stringify([w.storeId, e.exerciseId]);
+    const sets = e.sets.map((set, index) => ({ set, index })).filter(({ set }) => set.completed && !set.excluded
+      && [set.weight, set.left?.weight, set.right?.weight].some((v) => number(v) !== null));
+    if (sets.length && !storeLoads.has(key)) storeLoads.set(key, {
+      店舗: storeName(w.storeId, w.storeLabel), 種目: e.name, 日付: w.trainingDate,
+      セット: sets.map(({ set, index }) => setData(set, index)),
+    });
+  }
   const data = {
     今日の条件: {
       トレーニング日: o.trainingDate, 日付の区切り: "Asia/Tokyo 午前6時", 店舗: selectedStore,
@@ -148,6 +159,7 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
       && !equipmentRows.some((row) => row.equipmentId === e.equipmentId && !row.available))
       .map((e) => ({ 種目: e.name, 器具: equipmentName(e.equipmentId), 負荷の種類: e.loadType, 片側種目: e.unilateral === true })),
     履歴の範囲: { 上限件数: o.historyCount, 出力件数: history.length, 対象: "指定日以前の終了済み記録。時間だけの記録も含む。全履歴とは限らない。" },
+    店舗別の重量記録: { 範囲: "選択した履歴の範囲で、店舗・種目ごとに重量が入力された直近の完了セット。適正重量の確定値ではありません。", 記録: [...storeLoads.values()] },
     過去の記録: history.map(workoutData),
     進行中のメニュー: o.includeActivePlan && input.activeWorkout?.status === "active" ? workoutData(input.activeWorkout) : undefined,
   };
@@ -161,6 +173,8 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
     "- アプリの完了チェックは入力値を実績にコピーします。実績欄はセンサーによる実測とは限りません。左右別の値を保ち、報告されていない側を補完しないでください。",
     "- 負荷の種類が assist の重量は補助重量で、大きいほど補助が強くなります。time は秒数、reps は回数、level は器具のレベルです。片側種目の重量は片側あたりです。負荷の種類が不明な記録は確認してください。",
     "- 同じ種目でも別店舗の重量を同じ負荷とみなさず、参考値として扱ってください。器具が『ない』なら使わず、『未確認』や一覧にない器具は確認してください。",
+    "- 重量は店舗・種目ごとに調整してください。この店舗の実績を最優先し、他店舗の新しい重量や全店舗の平均で置き換えないでください。同店舗の実績がなければ他店舗の重量は仮の参考とし、最初のセットで確認する案にしてください。店舗間の換算率は推測しないでください。",
+    "- 店舗別の重量記録は選択範囲内だけです。載っていない店舗の記録が存在しないとは限りません。実施後に調整した重量・回数は、その店舗の次回の基準として扱い、他店舗の基準を上書きしないでください。",
     "- 時間だけの記録から筋トレ・有酸素の内容を推定しないでください。有酸素の区間表は計画、実績欄は報告済みの記録です。",
     "- 実施頻度だけで『好きな種目』と決めつけないでください。本人が明示した希望を優先し、矛盾があれば確認してください。",
     "- 痛みや違和感を無視した負荷増加を提案しないでください。判断に必要な体調情報が省略されていれば、まず確認してください。",
@@ -168,7 +182,7 @@ export function buildAiCoachPrompt(input: AiCoachInput): { text: string; count: 
     "",
     "## 欲しい回答",
     "1. 足りない情報の確認（十分なら省略）。",
-    "2. 種目の順番、セットごとの重量・回数または秒数、左右の違い、休憩、フォームの要点を表で提示。維持・変更した理由と、参考にした記録の日付を説明。",
+    "2. 種目の順番、セットごとの重量・回数または秒数、左右の違い、休憩、フォームの要点を表で提示。維持・変更した理由と、基準にした店舗・記録の日付、他店舗からの参考値かどうかを説明。",
     "3. 有酸素を希望する場合は区間ごとの時間・速度・傾斜またはバイクのレベルを表で提示。希望しない場合は押し付けない。",
     "4. 合計時間の目安と、疲労・器具待ちなどで変更する際の代替案。提案値と過去の実績を明確に区別。",
     "5. 最後にアプリへ手入力しやすい簡潔なメニュー一覧。既存の記録の書き換えや、未実施のメニューの実績化はしない。",

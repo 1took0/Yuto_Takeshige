@@ -95,7 +95,8 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-bold">
             {e.name}
-            {e.weightReference === "other_store" && <span className="ml-1 rounded bg-warn-soft px-1 text-[10px] font-medium text-warn">参考値</span>}
+            {e.weightReference === "other_store" && <span className="ml-1 rounded bg-warn-soft px-1 text-[10px] font-medium text-warn">他店舗の参考値</span>}
+            {weighted && e.weightReference === "same_store" && <span className="ml-1 rounded bg-card-2 px-1 text-[10px] font-medium">この店舗の実績</span>}
           </h3>
           <div className="truncate text-xs text-muted">
             {musclesLabel(e.primary)} ・ {active.length}セット {def?.loadType === "time" ? "" : `×${active[0]?.reps ?? def?.defaultReps ?? "-"}回`} ・ {summary}
@@ -117,7 +118,7 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
         <div className="space-y-2 border-t border-border px-3 pb-3 pt-2">
           {e.previous && (
             <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted">
-              前回 {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? e.previous.storeLabel ?? "別の店舗"}：{" "}
+              {weighted ? e.weightReference === "same_store" ? "この店舗の基準" : "他店舗の参考" : "前回"} {formatJaDate(e.previous.trainingDate)}・{findStore(e.previous.storeId)?.shortName ?? e.previous.storeLabel ?? "別の店舗"}：{" "}
               <span className="text-fg tabular">
                 {e.previous.sets
                   .map((s) => (s.seconds !== undefined && s.weight === undefined ? `${s.seconds}秒` : s.left?.weight !== undefined ? `${s.left.weight}` : s.weight !== undefined ? `${s.weight}` : "?"))
@@ -127,6 +128,15 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
               {e.previous.sets.some((s) => s.actualReps !== undefined) && <span>（{e.previous.sets.map((s) => s.actualReps ?? "?").join("/")}回）</span>}
             </div>
           )}
+          {weighted && e.otherStorePrevious && (
+            <div className="rounded-lg bg-card-2 px-2 py-1.5 text-xs text-muted" data-testid="other-store-reference">
+              他店舗の参考 {formatJaDate(e.otherStorePrevious.trainingDate)}・{findStore(e.otherStorePrevious.storeId)?.shortName ?? e.otherStorePrevious.storeLabel ?? "別の店舗"}：
+              {e.otherStorePrevious.sets.map((s) => s.left || s.right
+                ? `左${s.left?.weight ?? "?"} / 右${s.right?.weight ?? "?"} kg`
+                : `${s.weight ?? "?"} kg`).join("、")}。同じ負荷とは限らないため、この店舗の基準には上書きしません。
+            </div>
+          )}
+          {weighted && !editOnly && <p className="text-xs text-muted">この店舗で実際に使った重量・回数に直して完了をチェックしてください。トレーニング終了後、次回この店舗での重量調整に使います。</p>}
           {e.rationale && <p className="text-xs text-muted">{e.rationale}</p>}
           {e.note && !showInfo && <p className="text-xs">📝 {e.note}</p>}
 
