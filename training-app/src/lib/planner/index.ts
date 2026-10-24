@@ -353,7 +353,8 @@ export function generatePlan(input: PlanInput): PlanResult {
       }
       // 希望：強度
       if (prefs.intensity === "light") setsDelta -= 1;
-      if (prefs.intensity === "hard" && slot.core) setsDelta += 1;
+      // 明示したセット数を強度の既定補正で増やさない。初心者・疲労等の削減も相殺しない。
+      if (prefs.intensity === "hard" && slot.core && exerciseRule(def, prefs)?.sets === undefined) setsDelta += 1;
       // 器具未確認の店舗は少し下げる（店舗全体が未確認のときは要約に1行だけ書き、種目ごとの注記は出さない）
       if (!av.confirmed) {
         score -= 5;

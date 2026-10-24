@@ -46,6 +46,14 @@ const ruleFor = (exerciseId: string, rest: Omit<AiExerciseRule, "exerciseId">): 
 afterEach(() => setDeletedExercises([]));
 
 describe("相談で決めた次回以降の種目別設定", () => {
+  it.each([1, 4, 6])("追い込み希望でも明示した%dセットを増やさず、初心者の削減も相殺しない", (sets) => {
+    const p: MenuPreferences = { ...ruleFor("chest_press", { sets }), intensity: "hard" };
+    expect(plan(p).workout.exercises[0].sets).toHaveLength(sets);
+    expect(plan({ ...p, experience: "beginner" }).workout.exercises[0].sets).toHaveLength(Math.max(1, sets - 1));
+    expect(plan(p, { intake: { ...intake, condition: 2 } }).workout.exercises[0].sets).toHaveLength(Math.max(1, sets - 1));
+    expect(plan(p, { intake: { ...intake, soreness: true, soreRegions: ["chest"], soreLevel: "moderate" } }).workout.exercises[0].sets).toHaveLength(Math.max(1, sets - 1));
+  });
+
   it("指定セット・回数・休憩を新しい予定へ反映し、1セットも許可する", () => {
     const w = plan(ruleFor("chest_press", { sets: 4, reps: 6, restSec: 150 })).workout;
     expect(w.exercises).toHaveLength(1);

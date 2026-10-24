@@ -41,7 +41,7 @@ test("会話の返却文を確認・保存・取り消しでき、継続する�
   const input = page.getByLabel("AIからの方針の返却文");
   await input.fill("方針を変えてください");
   await page.getByRole("button", { name: "変更内容を確認" }).click();
-  await expect(page.getByRole("alert")).toContainText("返却形式");
+  await expect(page.getByRole("region", { name: "AIで決めた方針を取り込む" }).getByRole("alert")).toContainText("返却形式");
   const policy = JSON.stringify({ format: "training-coach-policy", version: 1, summary: "胸を先に、バイクは省いて継続する", preferences: {
     timeLimitMin: 60, cardio: "walk", warmupBike: "no", progressionMode: "cautious",
     exerciseOrder: ["chest_press"], exerciseRules: [{ exerciseId: "chest_press", sets: 2, reps: 11, restSec: 90 }],
@@ -55,17 +55,17 @@ test("会話の返却文を確認・保存・取り消しでき、継続する�
     await input.fill(policy);
     await page.getByRole("button", { name: "変更内容を確認" }).click();
     await page.getByRole("button", { name: "この方針を次回以降に反映" }).click();
-    await expect(page.getByRole("status")).toContainText("方針を保存しました");
+    await expect(page.getByRole("region", { name: "AIで決めた方針を取り込む" }).getByRole("status")).toContainText("方針を保存しました");
   };
   await apply();
   await page.reload();
   await expect(page.getByText("胸を先に、バイクは省いて継続する", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "直前の取り込みを元に戻す" }).click();
-  await expect(page.getByRole("status")).toContainText("取り込み前の方針に戻しました");
+  await expect(page.getByRole("region", { name: "AIで決めた方針を取り込む" }).getByRole("status")).toContainText("取り込み前の方針に戻しました");
   await apply();
   await page.getByRole("link", { name: "方針を使って次のメニューを作る" }).click();
   await expect(page.getByRole("radio", { name: "60分", exact: true })).toBeChecked();
-  await expect(page.getByRole("radio", { name: "ウォーキング", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "ウォーキングのみ", exact: true })).toBeChecked();
   await page.getByTestId("generate").click();
   const first = page.getByTestId("exercise-card").first();
   await expect(first).toHaveAttribute("data-exercise-id", "chest_press");
