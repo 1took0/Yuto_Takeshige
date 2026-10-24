@@ -168,9 +168,10 @@ export function ActiveWorkoutView() {
             dragItem={focusedId ? undefined : reorder.itemProps(e.id)}
             dragHandle={focusedId ? undefined : reorder.handleProps(e.id)}
             step={stepOf(e.exerciseId)}
-            onChangeStep={(v) => {
+            onChangeStep={async (v) => {
               const def = getExercise(e.exerciseId);
-              if (def) void setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v });
+              if (!def) throw new Error("種目が見つかりません");
+              await setStoreEquipment(w.storeId, def.equipmentId, { stepKg: v });
             }}
             mutate={mutate}
             collapsed={!!collapsed[e.id] && !focusedId}

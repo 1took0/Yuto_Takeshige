@@ -27,7 +27,7 @@ interface Props {
   editOnly?: boolean;
   /** この店舗での重量の刻み(kg)と、刻みを変えたときの保存先 */
   step?: number;
-  onChangeStep?: (stepKg: number) => void;
+  onChangeStep?: (stepKg: number) => Promise<void>;
   /** 長押しドラッグの並べ替え（カード全体と、つかむ見出し部分） */
   dragItem?: { ref: (el: HTMLElement | null) => void; style?: React.CSSProperties; "data-dragging"?: string };
   dragHandle?: { onPointerDown: (e: React.PointerEvent) => void; onClickCapture: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void; style?: React.CSSProperties };
@@ -51,6 +51,15 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
     return undefined;
   };
   const toast = useToast();
+  const saveStep = async (value: number | undefined) => {
+    if (!onChangeStep || value === undefined || value <= 0) return;
+    try {
+      await onChangeStep(value);
+      toast(`この店舗の器具設定に刻み ${value}kg を保存しました`, "success");
+    } catch {
+      toast("重量の刻みを保存できませんでした。もう一度入力してください", "error");
+    }
+  };
   const [showInfo, setShowInfo] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ set: WorkoutSet } | null>(null);
   const [confirmRemoveEx, setConfirmRemoveEx] = useState(false);
@@ -187,8 +196,8 @@ export function ExerciseCard({ exercise: e, index, mutate, collapsed, focused, o
                   {weighted && onChangeStep && (
                     <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
                       この店舗の重量の刻み
-                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => v && v > 0 && onChangeStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
-                      <span className="w-full text-[11px]">{equipmentName(def.equipmentId)}で何kgずつ変えられるか。次回のメニュー作成と ± ボタンに使います</span>
+                      <NumberField label="重量の刻み" unit="kg" value={step} onChange={(v) => void saveStep(v)} step={0.5} min={0.5} max={20} size="sm" className="w-40 shrink-0" />
+                      <span className="w-full text-[11px]">入力を確定すると「設定 → 店舗の器具」の{equipmentName(def.equipmentId)}にも保存します。この店舗で同じ器具を使う種目の ± ボタンと次回のメニュー作成に反映し、他店舗の刻みは変更しません。作成済みの重量や実績は変わりません。</span>
                     </label>
                   )}
                 </>

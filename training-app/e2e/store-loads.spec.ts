@@ -34,6 +34,29 @@ test("店舗の基準と他店舗の参考を分け、調整値を再表示・�
   await expect(card.getByTestId("other-store-reference")).toContainText("100 kg");
   const row = card.getByTestId("set-row").last();
   await expect(row.getByLabel("重量", { exact: true })).toHaveValue("50");
+  await card.getByTestId("form-toggle").click();
+  await card.getByLabel("重量の刻み", { exact: true }).fill("2.5");
+  await card.getByLabel("重量の刻み", { exact: true }).press("Enter");
+  await expect(page.getByText("この店舗の器具設定に刻み 2.5kg を保存しました")).toBeVisible();
+  await expect(row.getByRole("button", { name: "重量を2.5増やす", exact: true })).toBeVisible();
+  // 作成済みの重量を変えず、店舗の共通設定に保存する。
+  await expect(row.getByLabel("重量", { exact: true })).toHaveValue("50");
+  await page.goto("/settings#equipment");
+  const equipment = page.getByTestId("settings-equipment");
+  const settingStep = equipment.getByLabel("チェストプレスマシンの重量の刻み", { exact: true });
+  await expect(settingStep).toHaveValue("2.5");
+  await page.reload();
+  await expect(settingStep).toHaveValue("2.5");
+  await equipment.getByRole("button", { name: "東山二条", exact: true }).click();
+  await expect(settingStep).toHaveValue("5");
+  await equipment.getByRole("button", { name: "一乗寺", exact: true }).click();
+  await expect(settingStep).toHaveValue("2.5");
+  // 設定画面での変更もメニューの±へ反映する。
+  await settingStep.fill("1");
+  await settingStep.press("Enter");
+  await page.goto("/workout");
+  if (!await card.getByTestId("other-store-reference").isVisible()) await card.locator("header").click();
+  await expect(row.getByRole("button", { name: "重量を1増やす", exact: true })).toBeVisible();
   await row.getByLabel("重量", { exact: true }).fill("32.5");
   await row.getByLabel("重量", { exact: true }).press("Enter");
   await row.getByRole("button", { name: /を完了にする/ }).click();
