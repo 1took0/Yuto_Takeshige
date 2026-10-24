@@ -288,6 +288,8 @@ export interface Settings {
   id: "settings";
   /** AIへ渡す相談・理想のメニュー。端末内に保存し、内蔵プランナーには自動適用しない。 */
   aiCoachRequest?: string;
+  /** 最後に確認して取り込んだ方針と、取り消し用の設定（端末内のみ）。 */
+  aiCoachImport?: { summary: string; appliedAt: string; before: AiCoachSnapshot; afterKey: string };
   theme: "system" | "light" | "dark";
   lastStoreId?: StoreId;
   /** 表示しない標準店舗（LifeFit を使わない人向け。記録と器具の設定は残る） */
@@ -378,6 +380,12 @@ export interface PreferenceNote {
  * - ここにはそれ以外の、メニュー作成で毎回考慮する希望を持つ
  */
 export interface MenuPreferences {
+  /** AIとの相談から確認して取り込んだ、次回以降の種目別希望。重量は店舗の実績で決める。 */
+  exerciseRules?: AiExerciseRule[];
+  /** 採用された筋トレ種目のうち、指定したものをこの順番で先に並べる。 */
+  exerciseOrder?: string[];
+  /** 中長期の進め方。hold は自動増量を止め、cautious は標準より慎重に進める。 */
+  progressionMode?: "standard" | "cautious" | "hold";
   /** 初回ヒアリングに答えた日時（未回答なら初回トレーニング時に質問する） */
   answeredAt?: string;
   experience?: Experience;
@@ -403,6 +411,16 @@ export interface MenuPreferences {
   pastExercises?: PastExercise[];
   notes?: PreferenceNote[];
 }
+
+export interface AiExerciseRule {
+  exerciseId: string;
+  sets?: number;
+  reps?: number;
+  seconds?: number;
+  restSec?: number;
+}
+
+export type AiCoachSnapshot = Pick<Settings, "preferences" | "goals" | "lastTimeLimitMin" | "lastCardio">;
 
 /** 計画の構造化パッチ（AI/ルールエンジンは予定のみ変更し、実績には触れない） */
 export type PlanPatchOp =
