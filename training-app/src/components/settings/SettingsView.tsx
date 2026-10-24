@@ -108,7 +108,7 @@ export function SettingsView() {
 
       <ShareSettings />
 
-      <Link href="/ai-coach" className="btn-secondary w-full">AIにメニューを相談（記録を書き出す）</Link>
+      <Link href="/ai-coach" className="btn-secondary w-full">AIにメニューを相談（方針を相談・反映）</Link>
 
       <Section id="preferences" title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。トレーニング中にコーチの「今後この種目は外したい」を選んでも更新されます。">
         <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />

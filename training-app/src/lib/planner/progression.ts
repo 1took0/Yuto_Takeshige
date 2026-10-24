@@ -58,6 +58,8 @@ export const CLASS_LABEL: Record<LiftClass, string> = {
 };
 
 export interface ProgressionProfile {
+  /** 自動の重量・回数増加を止める。未達成時の負荷軽減は続ける。 */
+  hold?: boolean;
   /** 目標回数の範囲 */
   repRange: [number, number];
   /** 1回で上げてよい重量の割合（これを超える刻みなら先に回数を増やす） */
@@ -100,13 +102,15 @@ export function progressionProfile(def: ExerciseDef, prefs: MenuPreferences = {}
     required += 1;
   }
   if (prefs.intensity === "light") required += 1;
+  if (prefs.progressionMode === "cautious") required = Math.max(2, required);
   return {
     repRange,
     maxJump,
     requiredSuccesses: Math.min(3, required),
-    doubleProgression: exp === "intermediate" || exp === "advanced" || prefs.intensity === "light",
+    doubleProgression: exp === "intermediate" || exp === "advanced" || prefs.intensity === "light" || prefs.progressionMode === "cautious",
     deloadAfter: 2,
     deloadPct: 0.1,
+    ...(prefs.progressionMode === "hold" ? { hold: true } : {}),
   };
 }
 
@@ -171,7 +175,7 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   const last = sessions[0];
   if (!last || last.weight === undefined) return { kind: "start", notes: [] };
   const w0 = last.weight;
-  const reps0 = clampReps(last.reps ?? def.defaultReps ?? lo);
+  const reps0 = profile.hold ? last.reps ?? def.defaultReps ?? lo : clampReps(last.reps ?? def.defaultReps ?? lo);
   const assist = def.loadType === "assist";
   const sameWeight = (s: PastSession) => s.weight === w0;
   const streak = (pred: (s: PastSession) => boolean) => {
@@ -198,6 +202,9 @@ export function decideNextLoad(def: ExerciseDef, sessions: PastSession[], step: 
   }
   if (!last.outcome.allDone) {
     return { kind: "hold", weight: w0, reps: reps0, notes: ["前回は予定のセットを全部終えていないため据え置き（全部終えたら次回アップ）"] };
+  }
+  if (profile.hold) {
+    return { kind: "hold", weight: w0, reps: last.reps ?? def.defaultReps ?? lo, notes: ["希望により重量・回数の自動増加を止め、実績を据え置きます"] };
   }
   if (successes < profile.requiredSuccesses) {
     return { kind: "hold", weight: w0, reps: reps0, notes: [`あと${profile.requiredSuccesses - successes}回続けて全セット達成できたら重量アップ`] };

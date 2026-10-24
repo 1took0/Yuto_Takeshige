@@ -26,8 +26,8 @@ const fixture = (): AiCoachInput => ({
   workouts: [workout()], stores: [{ id: "gym-a", name: "秘密の店舗A", shortName: "A" }, { id: "gym-b", name: "秘密の店舗B", shortName: "B" }],
   equipment: [{ key: "gym-a:bodyweight", storeId: "gym-a", equipmentId: "bodyweight", available: true, confirmed: false, updatedAt: "now", note: "器具秘密メモ" }],
   exercises: [],
-  options: { historyCount: 8, storeId: "gym-a", trainingDate: "2026-10-25", request: "合う順番を相談したい", todayNotes: "今日は30分だけ",
-    includeHealth: false, includeNotes: false, includeStoreNames: false, includeActivePlan: false },
+  options: { historyCount: 8, storeId: "gym-a", trainingDate: "2026-10-25", request: "合う順番を相談したい",
+    includeHealth: false, includeNotes: false, includeStoreNames: false },
 });
 
 function data(input: AiCoachInput) {
@@ -57,7 +57,9 @@ describe("AI相談の書き出し", () => {
     const input = fixture();
     const text = buildAiCoachPrompt(input).text;
     for (const secret of ["private-", "secret-token", "秘密", "gym-a", "set-a", "ex-instance"]) expect(text).not.toContain(secret);
-    expect(text).toContain("今日は30分だけ");
+    expect(text).toContain("合う順番を相談したい");
+    expect(text).toContain("training-coach-policy");
+    expect(text).toContain("中長期");
     expect(data(input).保存済みの体格と痛み).toContain("出力しない");
     expect(data(input).店舗の器具[0].状態).toBe("未確認");
   });
@@ -97,25 +99,20 @@ describe("AI相談の書き出し", () => {
     expect(sets[3].実績秒数).toBeNull();
   });
 
-  it("指定日以前の終了記録を上限内で選び、進行中は別枠にし、入力を変更しない", () => {
+  it("指定日以前の終了記録を上限内で選び、進行中は含めず、入力を変更しない", () => {
     const input = fixture();
     input.options.historyCount = 4;
     const active = { ...workout("2026-10-25"), status: "active" as const };
     input.workouts = [workout("2026-10-26"), workout("2026-10-18"), active,
       workout("2026-10-23", "gym-b"), workout("2026-10-22"), workout("2026-10-21"), workout("2026-10-20")];
-    input.activeWorkout = active;
     const before = JSON.stringify(input);
-    let result = data(input);
+    const result = data(input);
     expect(result.過去の記録.map((w: { 日付: string }) => w.日付)).toEqual(["2026-10-23", "2026-10-22", "2026-10-21", "2026-10-20"]);
-    expect(result.今日の条件.店舗).toBe("店舗1");
+    expect(result.相談の対象.主に参考にする店舗).toBe("店舗1");
     expect(result.過去の記録[0].店舗).toBe("店舗2");
     expect(result.過去の記録[1].店舗).toBe("店舗1");
     expect(result.進行中のメニュー).toBeUndefined();
     expect(JSON.stringify(input)).toBe(before);
-    input.options.includeActivePlan = true;
-    result = data(input);
-    expect(result.進行中のメニュー.状態).toContain("進行中");
-    expect(result.進行中のメニュー.店舗).toBe("店舗1");
   });
 
   it("並べ替え後に追加した種目を画面と同じ位置に出し、種目配列の順番を優先する", () => {
@@ -136,11 +133,10 @@ describe("AI相談の書き出し", () => {
     const input = fixture();
     input.workouts = [];
     expect(buildAiCoachPrompt(input).count).toBe(0);
-    expect(data(input).今日の条件.体調5段階).toBeNull();
-    expect(data(input).今日の条件.時間).toBe("未指定");
-    input.options.timeLimitMin = null;
+    expect(data(input).今日の条件).toBeUndefined();
+    input.settings.preferences!.timeLimitMin = null;
     input.workouts = [{ ...workout(), timeOnly: true, exercises: [], cardio: [], durations: { totalMin: 30 } }];
-    expect(data(input).今日の条件.時間).toBe("制限なし");
+    expect(data(input).保存済みの希望.普段の時間).toBe("制限なし");
     expect(data(input).過去の記録[0].順番と内容).toEqual([]);
     expect(data(input).過去の記録[0].記録種別).toContain("時間だけ");
   });

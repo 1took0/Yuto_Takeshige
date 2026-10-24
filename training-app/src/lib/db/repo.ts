@@ -32,17 +32,17 @@ export async function getSettings(): Promise<Settings> {
 // 設定の更新は「読んで→書く」なので、同時に呼ばれても順番に処理して更新が消えないようにする
 let settingsQueue: Promise<unknown> = Promise.resolve();
 
-export function updateSettings(patch: Partial<Settings>): Promise<Settings> {
-  const run = async () => {
+export function updateSettings(patch: Partial<Settings> | ((current: Settings) => Partial<Settings>)): Promise<Settings> {
+  const run = () => db().transaction("rw", db().settings, async () => {
     const cur = await getSettings();
-    const next = { ...cur, ...patch, id: "settings" as const, updatedAt: new Date().toISOString() };
+    const next = { ...cur, ...(typeof patch === "function" ? patch(cur) : patch), id: "settings" as const, updatedAt: new Date().toISOString() };
     await db().settings.put(next);
     // 追加した店舗・種目をすぐに参照できるようにする（画面の再描画を待たない）
     setCustomStores(next.customStores, next.hiddenStoreIds);
     setCustomExercises(next.customExercises);
     setDeletedExercises(next.deletedExerciseIds, next.restoredExerciseIds);
     return next;
-  };
+  });
   const p = settingsQueue.then(run, run);
   settingsQueue = p.catch(() => undefined);
   return p;

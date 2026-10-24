@@ -41,19 +41,19 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
   const [busy, setBusy] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
 
-  // 前回の店舗・時間・有酸素を初期値に（変更可能）
+  // 継続する希望を優先し、未設定なら前回の条件を初期値に（当日は変更可能）
   useEffect(() => {
     let cancelled = false;
     Promise.all([getSettings(), listCompletedWorkouts()]).then(([s, history]) => {
       if (cancelled) return;
-      // 有酸素の初期値は押し付けない：前回の選択 → ヒアリングの答え → 記録（走っていればランニング、歩いていればウォーキング）→ なし
+      // 明示した中長期の希望 → 前回の選択 → 記録 → なし。未実施という推測で希望を取り消さない。
       // これまでの記録でトレッドミルを一度も行っていない人は「なし」から（選び直せば入れられる）
       const use = cardioHabits(history, trainingDateOf());
       const noTreadmill = skipsCardio(use, "treadmill");
       const learned: CardioChoice = runHistory(history).some((r) => (r.runMin ?? 0) > 0) ? "run" : use.treadmill > 0 ? "walk" : "none";
       setForm({
         storeId: defaultStoreId(s.lastStoreId),
-        timeLimit: s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
+        timeLimit: s.preferences?.timeLimitMin !== undefined ? s.preferences.timeLimitMin : s.lastTimeLimitMin === undefined ? 90 : s.lastTimeLimitMin,
         condition: 4,
         soreness: false,
         soreRegions: [],
@@ -61,7 +61,7 @@ export function IntakeForm({ presetMemo }: { presetMemo?: string }) {
         pain: false,
         painDesc: "",
         focus: "auto",
-        cardio: noTreadmill ? "none" : (s.lastCardio ?? s.preferences?.cardio ?? learned),
+        cardio: s.preferences?.cardio ?? s.lastCardio ?? (noTreadmill ? "none" : learned),
         memo: presetMemo ?? "",
       });
     });
