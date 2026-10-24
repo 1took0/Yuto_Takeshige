@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -106,6 +107,8 @@ export function SettingsView() {
       <p className="text-xs text-muted">項目を押すと開きます。</p>
 
       <ShareSettings />
+
+      <Link href="/ai-coach" className="btn-secondary w-full">AIにメニューを相談（記録を書き出す）</Link>
 
       <Section id="preferences" title="ヒアリング結果（メニューの希望）" hint="最初のトレーニングで答えた内容です。変更は次のメニュー作成から反映されます。トレーニング中にコーチの「今後この種目は外したい」を選んでも更新されます。">
         <PreferencesSummary goals={goalsOrDefault(settings.goals)} prefs={settings.preferences ?? {}} />

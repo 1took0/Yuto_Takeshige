@@ -1,0 +1,32 @@
+import { test, expect } from "@playwright/test";
+
+test("AI相談を保存・再表示し、確認済みの相談文をダウンロードできる", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("welcome-name").fill("AI相談テスト");
+  await page.getByTestId("welcome-submit").click();
+  await page.getByTestId("prefs-skip").click();
+  await page.getByTestId("ai-coach-link").click();
+  const request = page.getByLabel("相談したいこと・理想のメニュー");
+  await request.fill("今日は30分で、好みの順番を相談したい");
+  await page.getByRole("button", { name: "希望をこの端末に保存" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "希望をこの端末に保存しました" })).toBeVisible();
+  await page.reload();
+  await expect(request).toHaveValue("今日は30分で、好みの順番を相談したい");
+  await page.getByLabel("使える時間").selectOption("30");
+  await page.getByRole("button", { name: "相談文を作成" }).click();
+  const preview = page.getByLabel("コピーする相談文");
+  await expect(preview).toContainText("今日は30分で、好みの順番を相談したい");
+  expect(await preview.inputValue()).not.toContain("AI相談テスト");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "テキストを保存" }).click();
+  expect((await download).suggestedFilename()).toMatch(/^training-ai-\d{4}-\d{2}-\d{2}\.txt$/);
+  await page.getByLabel("店舗の実名を含める").check();
+  await expect(preview).toHaveCount(0);
+  await page.getByRole("button", { name: "相談文を作成" }).click();
+  await expect(preview).toBeVisible();
+  await page.getByRole("link", { name: "メニューを自分で入力して記録" }).click();
+  await expect(page).toHaveURL(/\/start\?manual=1/);
+  await page.goto("/settings");
+  await page.getByRole("link", { name: "AIにメニューを相談（記録を書き出す）" }).click();
+  await expect(request).toHaveValue("今日は30分で、好みの順番を相談したい");
+});

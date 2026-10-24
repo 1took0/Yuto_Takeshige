@@ -47,6 +47,10 @@ export function HomeView() {
         </div>
       )}
 
+      <Link href="/ai-coach" className="btn-secondary w-full" data-testid="ai-coach-link">
+        AIにメニューを相談
+      </Link>
+
       <section className="card p-3">
         <h2 className="mb-2 text-sm font-semibold text-muted">トレーニングを調整</h2>
         <TrainingAdjust />

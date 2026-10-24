@@ -284,6 +284,8 @@ export interface Workout {
 
 export interface Settings {
   id: "settings";
+  /** AIへ渡す相談・理想のメニュー。端末内に保存し、内蔵プランナーには自動適用しない。 */
+  aiCoachRequest?: string;
   theme: "system" | "light" | "dark";
   lastStoreId?: StoreId;
   /** 表示しない標準店舗（LifeFit を使わない人向け。記録と器具の設定は残る） */
