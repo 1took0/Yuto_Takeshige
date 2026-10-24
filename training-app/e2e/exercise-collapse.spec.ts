@@ -78,6 +78,53 @@ test("通常の自動折りたたみと次の種目の表示を維持する", as
   await expect(cards.last().locator("header")).toHaveAttribute("aria-expanded", "true");
 });
 
+for (const manual of [false, true]) {
+  test(`セット追加・回数変更後の折りたたみ（${manual ? "手動開閉後" : "初期表示"}）`, async ({ page }) => {
+    const card = page.getByTestId("exercise-card").first();
+    const header = card.locator("header");
+    const rows = card.getByTestId("set-row");
+    if (manual) {
+      await header.click();
+      await header.click();
+    }
+    await card.getByTestId("add-set").click();
+    await card.getByTestId("add-set").click();
+    await expect(rows).toHaveCount(5); // 既存2セット＋除外1セット＋追加2セット
+    await rows.nth(0).getByLabel("目標回数", { exact: true }).fill("12");
+    await rows.nth(0).getByLabel("目標回数", { exact: true }).press("Enter");
+    await rows.nth(1).getByRole("button", { name: "目標回数を1増やす", exact: true }).click();
+    await rows.nth(3).getByRole("button", { name: "目標回数を1減らす", exact: true }).click();
+    for (const n of [1, 2]) {
+      await card.getByRole("button", { name: `セット${n}を完了にする`, exact: true }).click();
+      await expect(header).toHaveAttribute("aria-expanded", "true");
+    }
+    // 最後の行を先に完了しても、追加した未完了セットが残っている間は閉じない。
+    await rows.nth(4).getByLabel("目標回数", { exact: true }).fill("8");
+    await card.getByRole("button", { name: "セット5を完了にする", exact: true }).click();
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    // Enterを押さず回数入力から直接チェックしても、入力確定と完了が両方反映する。
+    await rows.nth(3).getByLabel("目標回数", { exact: true }).fill("7");
+    await card.getByRole("button", { name: "セット4を完了にする", exact: true }).click();
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    // 完了後に再びセットを増やした場合も、新しい最終セットで閉じる。
+    await header.click();
+    await card.getByTestId("add-set").click();
+    await expect(rows).toHaveCount(6);
+    await expect(header).toHaveAttribute("aria-expanded", "true");
+    await rows.nth(5).getByLabel("目標回数", { exact: true }).fill("6");
+    await card.getByRole("button", { name: "セット6を完了にする", exact: true }).click();
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await page.reload();
+    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await header.click();
+    await expect(rows).toHaveCount(6);
+    await expect(card.getByRole("button", { name: /を未完了に戻す/ })).toHaveCount(5);
+    for (const [index, value] of ["12", "11", "10", "7", "8", "6"].entries()) {
+      await expect(rows.nth(index).getByLabel("目標回数", { exact: true })).toHaveValue(value);
+    }
+  });
+}
+
 test("集中モードと履歴編集では入力中のカードを閉じない", async ({ page }) => {
   const card = page.getByTestId("exercise-card").first();
   await card.getByRole("button", { name: "この種目に集中", exact: true }).click();
